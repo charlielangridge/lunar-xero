@@ -1,0 +1,550 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 5
+			path: config/lunarpanel-xero.php
+
+		-
+			message: '#^Offset ''payment_type'' on array\{payment_type\: string, account_code\: string\|null, account_name\: string\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Filament/Pages/ManageXeroSettings.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Filament/Pages/ManageXeroSettings.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>tenant_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Filament/Pages/ManageXeroSettings.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Filament/Resources/ProductResource/Pages/ManageProductXero.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Filament/Resources/ProductVariantResource/Pages/ManageVariantXero.php
+
+		-
+			message: '#^Parameter \#1 \$productVariant of static method Lunar\\Admin\\Filament\\Resources\\ProductVariantResource\:\:getBaseBreadcrumbs\(\) expects Lunar\\Models\\Contracts\\ProductVariant, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Filament/Resources/ProductVariantResource/Pages/ManageVariantXero.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Filament/Resources/ProductVariantResource/Pages/ManageVariantXero.php
+
+		-
+			message: '''
+				#^Call to deprecated method form\(\) of class Filament\\Actions\\Action\:
+				Use `schema\(\) instead\.$#
+			'''
+			identifier: method.deprecated
+			count: 1
+			path: src/Lunar/Extensions/EditCustomerPageExtension.php
+
+		-
+			message: '''
+				#^Call to method content\(\) of deprecated class Filament\\Forms\\Components\\Placeholder\:
+				Use `TextEntry` with the `state\(\)` method instead\.$#
+			'''
+			identifier: method.deprecatedClass
+			count: 3
+			path: src/Lunar/Extensions/EditCustomerPageExtension.php
+
+		-
+			message: '''
+				#^Call to static method make\(\) on deprecated class Filament\\Forms\\Components\\Placeholder\:
+				Use `TextEntry` with the `state\(\)` method instead\.$#
+			'''
+			identifier: staticMethod.deprecatedClass
+			count: 3
+			path: src/Lunar/Extensions/EditCustomerPageExtension.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_invoice_id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Lunar/Extensions/ManageOrderPageExtension.php
+
+		-
+			message: '#^Left side of && is always true\.$#'
+			identifier: booleanAnd.leftAlwaysTrue
+			count: 1
+			path: src/LunarXeroServiceProvider.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_contact_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Observers/LunarCustomerObserver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_invoice_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Observers/LunarOrderObserver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$captured_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Observers/LunarTransactionObserver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_invoice_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Observers/LunarTransactionObserver.php
+
+		-
+			message: '#^Offset ''account_code'' on array\{payment_type\: string, account_code\: string, account_name\: string\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Repositories/XeroSettingsRepository.php
+
+		-
+			message: '#^Offset ''payment_type'' on array\{payment_type\: string, account_code\: string, account_name\: string\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Repositories/XeroSettingsRepository.php
+
+		-
+			message: '#^Access to an undefined property CharlieLangridge\\LunarXero\\Models\\XeroOAuthToken\:\:\$expires_at\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Access to an undefined property CharlieLangridge\\LunarXero\\Models\\XeroOAuthToken\:\:\$token_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function is_object\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Contacts will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function is_object\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Invoices will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Account and ''getClass'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Account and ''getEnablePaymentsTo…'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Account and ''getType'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Allocation and ''getAllocationId'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Contacts and ''getContacts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\CreditNote and ''getCreditNoteNumber'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\CreditNote and ''getStatus'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice and ''getInvoiceNumber'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice and ''getStatus'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Invoices and ''getInvoices'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Payment and ''getDate'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Payment and ''getPaymentID'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Call to function method_exists\(\) with XeroAPI\\XeroPHP\\Models\\Accounting\\Payment and ''getReference'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Instanceof between XeroAPI\\XeroPHP\\Models\\Accounting\\Allocation and XeroAPI\\XeroPHP\\Models\\Accounting\\Allocation will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Instanceof between XeroAPI\\XeroPHP\\Models\\Accounting\\Contacts and XeroAPI\\XeroPHP\\Models\\Accounting\\Contact will always evaluate to false\.$#'
+			identifier: instanceof.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Instanceof between XeroAPI\\XeroPHP\\Models\\Accounting\\Invoices and XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice will always evaluate to false\.$#'
+			identifier: instanceof.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Instanceof between XeroAPI\\XeroPHP\\Models\\Accounting\\Payment and XeroAPI\\XeroPHP\\Models\\Accounting\\Payment will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 2
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Match arm comparison between XeroAPI\\XeroPHP\\Models\\Accounting\\PaymentTermType\|null and ''DAYSAFTERBILLDATE'' is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Match arm comparison between XeroAPI\\XeroPHP\\Models\\Accounting\\PaymentTermType\|null and ''DAYSAFTERBILLMONTH'' is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Match arm comparison between XeroAPI\\XeroPHP\\Models\\Accounting\\PaymentTermType\|null and ''OFCURRENTMONTH'' is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Match arm comparison between XeroAPI\\XeroPHP\\Models\\Accounting\\PaymentTermType\|null and ''OFFOLLOWINGMONTH'' is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Method CharlieLangridge\\LunarXero\\Services\\XeroClient\:\:searchContacts\(\) should return Illuminate\\Support\\Collection\<int, array\{id\: string, name\: string, email\: string\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: string, name\: string, email\: string\|null\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Parameter \#1 \$date of method XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice\:\:setDate\(\) expects string\|null, DateTime given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Parameter \#1 \$due_date of method XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice\:\:setDueDate\(\) expects string\|null, DateTime given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroClient.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$attribute_data\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$authorized_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$captured_at\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company_name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$contact_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$contact_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$fullName\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$full_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_one\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_three\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_two\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postcode\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$refunded_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sku\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_account_code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_contact_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_invoice_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_item_code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:lines\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Offset ''amount'' on array\{id\: string\|null, reference\: string\|null, amount\: float, date\: string\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Offset ''amount'' on array\{reference\: string\|null, amount\: float, account_code\: string\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>amounts" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>fullName" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>full_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>phone" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>sku" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>xero_account_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: src/Services/XeroSyncService.php
+
+		-
+			message: '#^Using nullsafe property access on non\-nullable type Illuminate\\Database\\Eloquent\\Model\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: src/Services/XeroSyncService.php
