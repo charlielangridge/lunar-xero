@@ -20,7 +20,7 @@ The package is built around Lunar's existing models and events, so it fits into 
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11 or 12
+- Laravel 11, 12 or 13
 - Filament 4
 - Lunar 1.x
 - A running queue worker

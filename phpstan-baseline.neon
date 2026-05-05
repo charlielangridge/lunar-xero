@@ -13,22 +13,10 @@ parameters:
 			path: src/Filament/Pages/ManageXeroSettings.php
 
 		-
-			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Filament/Pages/ManageXeroSettings.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>tenant_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Filament/Pages/ManageXeroSettings.php
-
-		-
-			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Filament/Resources/ProductResource/Pages/ManageProductXero.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
@@ -38,12 +26,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$productVariant of static method Lunar\\Admin\\Filament\\Resources\\ProductVariantResource\:\:getBaseBreadcrumbs\(\) expects Lunar\\Models\\Contracts\\ProductVariant, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Filament/Resources/ProductVariantResource/Pages/ManageVariantXero.php
-
-		-
-			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/Filament/Resources/ProductVariantResource/Pages/ManageVariantXero.php

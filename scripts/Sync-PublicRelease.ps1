@@ -49,6 +49,7 @@ $excludePatterns = @(
     "composer.lock",
     "coverage/**",
     "docs/**",
+    "RELEASING.md",
     "skills-lock.json",
     "vendor/**",
     "workbench/**"
