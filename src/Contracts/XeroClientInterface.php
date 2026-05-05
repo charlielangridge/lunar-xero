@@ -59,6 +59,8 @@ interface XeroClientInterface
      */
     public function updateInvoice(string $invoiceId, InvoicePayload $payload): array;
 
+    public function getOnlineInvoiceUrl(string $invoiceId): ?string;
+
     /**
      * @return array{id:string,number:?string,status:?string}
      */

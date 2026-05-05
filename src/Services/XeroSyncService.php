@@ -85,12 +85,13 @@ class XeroSyncService
                     'id' => (string) $order->xero_invoice_id,
                     'status' => 'skipped_existing_locked_invoice',
                 ];
+                $this->backfillExistingOnlineInvoiceUrl($order, $response);
             } else {
                 $response = filled($order->xero_invoice_id)
                     ? $this->client->updateInvoice((string) $order->xero_invoice_id, $payload)
                     : $this->client->createInvoice($payload);
 
-                $order->forceFill(['xero_invoice_id' => $response['id']])->save();
+                $this->persistInvoiceDetails($order, $response);
             }
 
             $paymentResults = $this->syncOrderTransactions($order);
@@ -607,6 +608,53 @@ class XeroSyncService
             'attempt' => 1,
             'started_at' => now(),
         ]);
+    }
+
+    protected function persistInvoiceDetails(Model $order, array &$response): void
+    {
+        $invoiceId = (string) $response['id'];
+        $invoiceStatus = $response['status'] ?? null;
+        $onlineInvoiceUrl = null;
+
+        if ($this->shouldFetchOnlineInvoiceUrl($invoiceStatus)) {
+            try {
+                $onlineInvoiceUrl = $this->client->getOnlineInvoiceUrl($invoiceId);
+            } catch (Throwable $throwable) {
+                $response['online_invoice_url_error'] = $throwable->getMessage();
+            }
+        }
+
+        $order->forceFill([
+            'xero_invoice_id' => $invoiceId,
+            'xero_invoice_number' => $response['number'] ?? null,
+            'xero_invoice_status' => $invoiceStatus,
+            'xero_online_invoice_url' => $onlineInvoiceUrl,
+        ])->save();
+
+        $response['online_invoice_url'] = $onlineInvoiceUrl;
+    }
+
+    protected function backfillExistingOnlineInvoiceUrl(Model $order, array &$response): void
+    {
+        if (filled(data_get($order, 'xero_online_invoice_url')) || ! $this->shouldFetchOnlineInvoiceUrl(data_get($order, 'xero_invoice_status'))) {
+            return;
+        }
+
+        try {
+            $onlineInvoiceUrl = $this->client->getOnlineInvoiceUrl((string) data_get($order, 'xero_invoice_id'));
+        } catch (Throwable $throwable) {
+            $response['online_invoice_url_error'] = $throwable->getMessage();
+
+            return;
+        }
+
+        $order->forceFill(['xero_online_invoice_url' => $onlineInvoiceUrl])->save();
+        $response['online_invoice_url'] = $onlineInvoiceUrl;
+    }
+
+    protected function shouldFetchOnlineInvoiceUrl(?string $invoiceStatus): bool
+    {
+        return in_array(mb_strtoupper(trim((string) $invoiceStatus)), ['AUTHORISED', 'PAID'], true);
     }
 
     protected function completeLog(XeroSyncLog $log, SyncStatus $status, array $response): array

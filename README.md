@@ -137,8 +137,15 @@ During invoice sync the package:
 4. resolves account codes from variant, product, then package default settings
 5. resolves or creates Xero item codes where possible
 6. creates or updates the Xero invoice
-7. stores the returned Xero invoice ID on the order
+7. stores the returned Xero invoice ID, invoice number, invoice status, and customer online invoice URL on the order
 8. backfills payments and refunds where appropriate
+
+Synced orders can contain these Xero invoice fields:
+
+- `xero_invoice_id`: the Xero invoice UUID
+- `xero_invoice_number`: the human-readable Xero invoice number, such as `INV-1234`
+- `xero_invoice_status`: the latest status returned by Xero, such as `DRAFT`, `AUTHORISED`, or `PAID`
+- `xero_online_invoice_url`: Xero's customer-safe online invoice URL, fetched only for customer-visible statuses
 
 If the order has a `customer_reference`, that value is used as the invoice reference and is also added as a zero-value purchase-order line.
 
@@ -154,6 +161,80 @@ You can override those defaults in `config/lunarpanel-xero.php`:
     'declaration_name_path' => 'meta.charity_vat_relief.declaration_name',
     'declared_at_path' => 'meta.charity_vat_relief.declared_at',
 ],
+```
+
+### Customer invoice links
+
+For storefront customer order pages, use the stored `xero_online_invoice_url` after your app has already checked that the signed-in customer owns the order. Do not expose the internal `go.xero.com` invoice URL used by the Lunar admin panel; that link is intended for staff with Xero access.
+
+Draft invoices are not customer-visible by default. The helper only returns a URL for `AUTHORISED` and `PAID` invoices:
+
+```php
+use CharlieLangridge\LunarXero\Support\XeroUrlFactory;
+
+$invoiceUrl = XeroUrlFactory::customerInvoiceUrl(
+    $order->xero_online_invoice_url,
+    $order->xero_invoice_status,
+);
+```
+
+A `ganda-webstore` style order show view can then render the link conditionally:
+
+```blade
+@php
+    $xeroInvoiceUrl = \CharlieLangridge\LunarXero\Support\XeroUrlFactory::customerInvoiceUrl(
+        $order->xero_online_invoice_url,
+        $order->xero_invoice_status,
+    );
+@endphp
+
+@if ($xeroInvoiceUrl)
+    <a href="{{ $xeroInvoiceUrl }}" target="_blank" rel="noopener">
+        View Xero invoice
+    </a>
+@endif
+```
+
+For an Inertia and Vue storefront, resolve the customer-safe URL in your Laravel controller or page response and pass only that final value to the component:
+
+```php
+use CharlieLangridge\LunarXero\Support\XeroUrlFactory;
+use Inertia\Inertia;
+
+return Inertia::render('Account/Orders/Show', [
+    'order' => [
+        'id' => $order->id,
+        'reference' => $order->reference,
+        'xeroInvoiceUrl' => XeroUrlFactory::customerInvoiceUrl(
+            $order->xero_online_invoice_url,
+            $order->xero_invoice_status,
+        ),
+    ],
+]);
+```
+
+Then render it in the Vue page only when the prop is present:
+
+```vue
+<script setup>
+defineProps({
+    order: {
+        type: Object,
+        required: true,
+    },
+})
+</script>
+
+<template>
+    <a
+        v-if="order.xeroInvoiceUrl"
+        :href="order.xeroInvoiceUrl"
+        target="_blank"
+        rel="noopener"
+    >
+        View Xero invoice
+    </a>
+</template>
 ```
 
 ### Payments and refunds

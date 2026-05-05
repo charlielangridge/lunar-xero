@@ -40,6 +40,7 @@ use XeroAPI\XeroPHP\Models\Accounting\Invoices;
 use XeroAPI\XeroPHP\Models\Accounting\Item;
 use XeroAPI\XeroPHP\Models\Accounting\Items;
 use XeroAPI\XeroPHP\Models\Accounting\LineItem;
+use XeroAPI\XeroPHP\Models\Accounting\OnlineInvoice;
 use XeroAPI\XeroPHP\Models\Accounting\Payment;
 use XeroAPI\XeroPHP\Models\Accounting\Payments;
 use XeroAPI\XeroPHP\Models\Accounting\PaymentTermType;
@@ -174,7 +175,11 @@ class XeroClient implements XeroClientInterface
 
     public function getAccounts(bool $paymentsOnly = false): Collection
     {
-        $response = $this->accountingApi()->getAccounts($this->tenantId(), null, 'Status=="ACTIVE"', 'Code ASC');
+        try {
+            $response = $this->accountingApi()->getAccounts($this->tenantId(), null, 'Status=="ACTIVE"', 'Code ASC');
+        } catch (Throwable $throwable) {
+            throw $this->wrapApiThrowable($throwable, 'fetch accounts from Xero');
+        }
 
         $accounts = Collection::make($this->extractNestedList($response, 'getAccounts'))
             ->map(function ($account): AccountOption {
@@ -385,6 +390,25 @@ class XeroClient implements XeroClientInterface
             'number' => method_exists($updated, 'getInvoiceNumber') ? $updated->getInvoiceNumber() : null,
             'status' => method_exists($updated, 'getStatus') ? $updated->getStatus() : null,
         ];
+    }
+
+    public function getOnlineInvoiceUrl(string $invoiceId): ?string
+    {
+        try {
+            $response = $this->accountingApi()->getOnlineInvoice($this->tenantId(), $invoiceId);
+        } catch (Throwable $throwable) {
+            throw $this->wrapApiThrowable($throwable, 'fetch online invoice URL from Xero');
+        }
+
+        $onlineInvoice = Collection::make($this->extractNestedList($response, 'getOnlineInvoices'))->first();
+
+        if (! $onlineInvoice instanceof OnlineInvoice) {
+            return null;
+        }
+
+        $url = $onlineInvoice->getOnlineInvoiceUrl();
+
+        return filled($url) ? (string) $url : null;
     }
 
     public function createCreditNote(CreditNotePayload $payload): array

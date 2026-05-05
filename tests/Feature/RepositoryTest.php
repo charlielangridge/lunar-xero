@@ -61,6 +61,82 @@ it('sets the active tenant and stores connection metadata', function (): void {
         ]);
 });
 
+it('preserves the active tenant when refreshing a multi tenant connection', function (): void {
+    $repository = app(XeroSettingsRepository::class);
+
+    $repository->replaceTenants([
+        [
+            'tenant_id' => 'tenant-1',
+            'tenant_name' => 'Primary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-1'],
+            'is_active' => false,
+        ],
+        [
+            'tenant_id' => 'tenant-2',
+            'tenant_name' => 'Secondary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-2'],
+            'is_active' => false,
+        ],
+    ]);
+
+    $repository->setActiveTenant('tenant-2');
+
+    $repository->replaceTenants([
+        [
+            'tenant_id' => 'tenant-1',
+            'tenant_name' => 'Primary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-1'],
+            'is_active' => false,
+        ],
+        [
+            'tenant_id' => 'tenant-2',
+            'tenant_name' => 'Secondary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-2'],
+            'is_active' => false,
+        ],
+    ]);
+
+    expect($repository->getActiveTenant()?->tenant_id)->toBe('tenant-2')
+        ->and($repository->getSettings()->active_tenant_id)->toBe('tenant-2');
+});
+
+it('clears stale active tenant state when the tenant is no longer available', function (): void {
+    $repository = app(XeroSettingsRepository::class);
+
+    $repository->replaceTenants([
+        [
+            'tenant_id' => 'tenant-1',
+            'tenant_name' => 'Primary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-1'],
+            'is_active' => false,
+        ],
+    ]);
+
+    $repository->setActiveTenant('tenant-1');
+
+    $repository->replaceTenants([
+        [
+            'tenant_id' => 'tenant-2',
+            'tenant_name' => 'Secondary Org',
+            'tenant_type' => 'ORGANISATION',
+            'payload' => ['tenantId' => 'tenant-2'],
+            'is_active' => false,
+        ],
+    ]);
+
+    expect($repository->getActiveTenant())->toBeNull()
+        ->and($repository->getSettings()->active_tenant_id)->toBeNull()
+        ->and($repository->getSettings()->connection_meta)->toMatchArray([
+            'active_tenant_id' => null,
+            'active_tenant_name' => null,
+        ]);
+});
+
 it('disconnects by clearing tokens tenants mappings and active tenant state', function (): void {
     $repository = app(XeroSettingsRepository::class);
 

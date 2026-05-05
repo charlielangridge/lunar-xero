@@ -123,7 +123,8 @@ class ManageXeroSettings extends Page
         $settingsRepository = app(XeroSettingsRepository::class);
         $token = $settingsRepository->getToken();
         $tenant = $settingsRepository->getActiveTenant();
-        $isConnected = filled($token?->access_token) && filled($tenant?->tenant_id);
+        $isAuthorized = filled($token?->access_token);
+        $isConnected = $isAuthorized && filled($tenant?->tenant_id);
 
         $accountOptions = [];
         $paymentAccountOptions = [];
@@ -141,6 +142,7 @@ class ManageXeroSettings extends Page
             'tenants' => $settingsRepository->getTenants(),
             'accountOptions' => $accountOptions,
             'paymentAccountOptions' => $paymentAccountOptions,
+            'isAuthorized' => $isAuthorized,
             'isConnected' => $isConnected,
             'hasPaymentTypes' => $this->paymentMappings !== [],
             'invoiceStatuses' => [

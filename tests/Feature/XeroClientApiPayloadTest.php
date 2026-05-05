@@ -8,9 +8,11 @@ use CharlieLangridge\LunarXero\Data\CreditNotePayload;
 use CharlieLangridge\LunarXero\Data\InvoiceLineData;
 use CharlieLangridge\LunarXero\Data\InvoicePayload;
 use CharlieLangridge\LunarXero\Data\PaymentPayload;
+use CharlieLangridge\LunarXero\Exceptions\XeroTransportException;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Services\XeroClient;
 use XeroAPI\XeroPHP\Api\AccountingApi;
+use XeroAPI\XeroPHP\ApiException;
 use XeroAPI\XeroPHP\Models\Accounting\Allocation;
 use XeroAPI\XeroPHP\Models\Accounting\Allocations;
 use XeroAPI\XeroPHP\Models\Accounting\Bill;
@@ -22,6 +24,8 @@ use XeroAPI\XeroPHP\Models\Accounting\Invoice;
 use XeroAPI\XeroPHP\Models\Accounting\Invoices;
 use XeroAPI\XeroPHP\Models\Accounting\Item;
 use XeroAPI\XeroPHP\Models\Accounting\Items;
+use XeroAPI\XeroPHP\Models\Accounting\OnlineInvoice;
+use XeroAPI\XeroPHP\Models\Accounting\OnlineInvoices;
 use XeroAPI\XeroPHP\Models\Accounting\Payment;
 use XeroAPI\XeroPHP\Models\Accounting\Payments;
 use XeroAPI\XeroPHP\Models\Accounting\PaymentTerm;
@@ -113,6 +117,19 @@ it('creates contacts using the xero bulk contacts payload shape', function (): v
         'name' => 'Charlie Langridge',
         'email' => 'charlie@example.com',
     ]);
+});
+
+it('wraps xero sdk errors when fetching accounts', function (): void {
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('getAccounts')
+        ->once()
+        ->with('tenant-123', null, 'Status=="ACTIVE"', 'Code ASC')
+        ->andThrow(new ApiException('Forbidden', 403, [], json_encode([
+            'Message' => 'The tenant is not available for this connection.',
+        ])));
+
+    expect(fn () => fakeXeroClient($api)->getAccounts())
+        ->toThrow(XeroTransportException::class, 'Unable to fetch accounts from Xero: The tenant is not available for this connection.');
 });
 
 it('creates invoices using the xero invoices payload and idempotency key parameter', function (): void {
@@ -216,6 +233,22 @@ it('creates payments using the xero payments payload and idempotency key paramet
     ));
 
     expect($result)->toBe(['id' => 'payment-123']);
+});
+
+it('fetches an online invoice url from xero', function (): void {
+    $onlineInvoice = new OnlineInvoice;
+    $onlineInvoice->setOnlineInvoiceUrl('https://in.xero.com/invoice/invoice-123');
+
+    $response = new OnlineInvoices;
+    $response->setOnlineInvoices([$onlineInvoice]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('getOnlineInvoice')
+        ->once()
+        ->with('tenant-123', 'invoice-123')
+        ->andReturn($response);
+
+    expect(fakeXeroClient($api)->getOnlineInvoiceUrl('invoice-123'))->toBe('https://in.xero.com/invoice/invoice-123');
 });
 
 it('creates credit note payments using the xero payments payload and idempotency key parameter', function (): void {

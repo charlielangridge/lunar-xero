@@ -51,10 +51,31 @@ class XeroSettingsRepository
      */
     public function replaceTenants(array $tenants): void
     {
+        $activeTenant = $this->getActiveTenant();
+        $activeTenantId = $activeTenant->tenant_id ?? $this->getSettings()->active_tenant_id;
+        $activeTenantWasFound = false;
+
         XeroTenant::query()->delete();
 
         foreach ($tenants as $tenant) {
-            XeroTenant::query()->create($tenant);
+            $isActive = filled($activeTenantId) && ($tenant['tenant_id'] ?? null) === $activeTenantId;
+            $activeTenantWasFound = $activeTenantWasFound || $isActive;
+
+            XeroTenant::query()->create([
+                ...$tenant,
+                'is_active' => $isActive,
+            ]);
+        }
+
+        if ($activeTenantId && ! $activeTenantWasFound) {
+            $settings = $this->getSettings();
+            $settings->active_tenant_id = null;
+            $settings->save();
+
+            $this->updateConnectionMeta([
+                'active_tenant_id' => null,
+                'active_tenant_name' => null,
+            ]);
         }
     }
 

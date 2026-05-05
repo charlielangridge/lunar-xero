@@ -5,9 +5,11 @@ declare(strict_types=1);
 use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use CharlieLangridge\LunarXero\Enums\SyncOperation;
 use CharlieLangridge\LunarXero\Enums\SyncStatus;
+use CharlieLangridge\LunarXero\Exceptions\XeroTransportException;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Services\XeroSyncService;
+use CharlieLangridge\LunarXero\Support\XeroUrlFactory;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Customer;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Order;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\OrderAddress;
@@ -75,8 +77,98 @@ it('syncs an order invoice and stores xero ids', function (): void {
     $service->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
 
     expect($order->fresh()->xero_invoice_id)->toBe('invoice-1')
+        ->and($order->fresh()->xero_invoice_number)->toBe('INV-1')
+        ->and($order->fresh()->xero_invoice_status)->toBe('DRAFT')
+        ->and($order->fresh()->xero_online_invoice_url)->toBeNull()
         ->and($customer->fresh()->xero_contact_id)->toBe('contact-1')
         ->and($variant->fresh()->xero_item_code)->toBe('SKU-1');
+});
+
+it('stores the online invoice url for customer visible xero invoices', function (): void {
+    app(XeroSettingsRepository::class)->setInvoiceStatus('AUTHORISED');
+
+    $customer = Customer::query()->create(['email' => 'customer@example.com', 'xero_contact_id' => 'contact-1']);
+    $product = Product::query()->create(['xero_account_code' => '200', 'attribute_data' => ['name' => 'Online Product']]);
+    $variant = ProductVariant::query()->create(['product_id' => $product->id, 'sku' => 'ONLINE-1']);
+    $order = Order::query()->create(['customer_id' => $customer->id, 'reference' => 'ORDER-ONLINE']);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'quantity' => 1,
+        'unit_price' => 20,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'ONLINE-1']);
+    $mock->shouldReceive('createInvoice')->once()->andReturn([
+        'id' => 'invoice-online-1',
+        'number' => 'INV-ONLINE-1',
+        'status' => 'AUTHORISED',
+    ]);
+    $mock->shouldReceive('getOnlineInvoiceUrl')
+        ->once()
+        ->with('invoice-online-1')
+        ->andReturn('https://in.xero.com/invoice/online-1');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+    $freshOrder = $order->fresh();
+
+    expect($result['online_invoice_url'])->toBe('https://in.xero.com/invoice/online-1')
+        ->and($freshOrder->xero_invoice_id)->toBe('invoice-online-1')
+        ->and($freshOrder->xero_invoice_number)->toBe('INV-ONLINE-1')
+        ->and($freshOrder->xero_invoice_status)->toBe('AUTHORISED')
+        ->and($freshOrder->xero_online_invoice_url)->toBe('https://in.xero.com/invoice/online-1');
+});
+
+it('keeps invoice sync successful when the online invoice url lookup fails', function (): void {
+    app(XeroSettingsRepository::class)->setInvoiceStatus('AUTHORISED');
+
+    $customer = Customer::query()->create(['email' => 'customer@example.com', 'xero_contact_id' => 'contact-1']);
+    $product = Product::query()->create(['xero_account_code' => '200', 'attribute_data' => ['name' => 'Online Product']]);
+    $variant = ProductVariant::query()->create(['product_id' => $product->id, 'sku' => 'ONLINE-FAIL-1']);
+    $order = Order::query()->create(['customer_id' => $customer->id, 'reference' => 'ORDER-ONLINE-FAIL']);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'quantity' => 1,
+        'unit_price' => 20,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'ONLINE-FAIL-1']);
+    $mock->shouldReceive('createInvoice')->once()->andReturn([
+        'id' => 'invoice-online-fail-1',
+        'number' => 'INV-ONLINE-FAIL-1',
+        'status' => 'AUTHORISED',
+    ]);
+    $mock->shouldReceive('getOnlineInvoiceUrl')
+        ->once()
+        ->with('invoice-online-fail-1')
+        ->andThrow(new XeroTransportException('Unable to fetch online invoice URL from Xero: temporary outage'));
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+    $freshOrder = $order->fresh();
+
+    expect($result['id'])->toBe('invoice-online-fail-1')
+        ->and($result['online_invoice_url'])->toBeNull()
+        ->and($result['online_invoice_url_error'])->toContain('temporary outage')
+        ->and($freshOrder->xero_invoice_id)->toBe('invoice-online-fail-1')
+        ->and($freshOrder->xero_online_invoice_url)->toBeNull();
+});
+
+it('only returns customer invoice urls for customer visible statuses', function (): void {
+    expect(XeroUrlFactory::customerInvoiceUrl('https://in.xero.com/invoice/1', 'AUTHORISED'))->toBe('https://in.xero.com/invoice/1')
+        ->and(XeroUrlFactory::customerInvoiceUrl('https://in.xero.com/invoice/2', 'PAID'))->toBe('https://in.xero.com/invoice/2')
+        ->and(XeroUrlFactory::customerInvoiceUrl('https://in.xero.com/invoice/3', 'DRAFT'))->toBeNull()
+        ->and(XeroUrlFactory::customerInvoiceUrl(null, 'AUTHORISED'))->toBeNull();
 });
 
 it('falls back from variant to product to default account code', function (): void {
@@ -944,13 +1036,18 @@ it('uses the customer reference for the xero invoice ref and updates an existing
             && $payload->lines[1]->description === 'Purchase Order: PO-1234'
             && $payload->lines[1]->unitAmount === 0.0;
     }))->andReturn(['id' => 'invoice-7', 'number' => 'INV-7', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')
+        ->once()
+        ->with('invoice-7')
+        ->andReturn('https://in.xero.com/invoice/7');
     app()->instance(XeroClientInterface::class, $mock);
     app()->forgetInstance(XeroSyncService::class);
 
     $result = app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
 
     expect($result['id'])->toBe('invoice-7')
-        ->and($order->fresh()->xero_invoice_id)->toBe('invoice-7');
+        ->and($order->fresh()->xero_invoice_id)->toBe('invoice-7')
+        ->and($order->fresh()->xero_online_invoice_url)->toBe('https://in.xero.com/invoice/7');
 });
 
 it('appends charity traceability lines from the default ganda order meta paths', function (): void {

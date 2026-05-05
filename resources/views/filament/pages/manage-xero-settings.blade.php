@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    @if (! $isConnected)
+    @if (! $isAuthorized)
         <div class="flex items-start justify-start py-8">
             <x-lunarpanel-xero::xero-brand-button
                 :href="route('lunarpanel-xero.connect')"
