@@ -953,6 +953,199 @@ it('uses the customer reference for the xero invoice ref and updates an existing
         ->and($order->fresh()->xero_invoice_id)->toBe('invoice-7');
 });
 
+it('appends charity traceability lines from the default ganda order meta paths', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-charity-1',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Charity Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'CHARITY-1',
+        'option_values' => 'A4',
+        'xero_account_code' => '201',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-CHARITY-1',
+        'customer_reference' => 'PO-CHARITY-1',
+        'meta' => [
+            'charity_vat_relief' => [
+                'charity_name' => 'Brighton Print Trust',
+                'charity_number' => '1234567',
+                'declaration_name' => 'Jamie Smith',
+                'declared_at' => '2026-04-09T13:45:00+01:00',
+            ],
+        ],
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'description' => 'Charity line',
+        'quantity' => 1,
+        'unit_price' => 100,
+        'tax_total' => 20,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'CHARITY-1']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->reference === 'PO-CHARITY-1'
+            && count($payload->lines) === 6
+            && $payload->lines[0]->description === 'Charity Product - A4'
+            && $payload->lines[0]->taxType === 'OUTPUT2'
+            && $payload->lines[1]->description === 'Charity name: Brighton Print Trust'
+            && $payload->lines[1]->unitAmount === 0.0
+            && $payload->lines[1]->taxType === 'ZERORATEDOUTPUT'
+            && $payload->lines[2]->description === 'Charity number: 1234567'
+            && $payload->lines[3]->description === 'Declaration name: Jamie Smith'
+            && $payload->lines[4]->description === 'Declared at: 9 April 2026, 1:45 pm'
+            && $payload->lines[5]->description === 'Purchase Order: PO-CHARITY-1';
+    }))->andReturn(['id' => 'invoice-charity-1']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-charity-1');
+});
+
+it('skips blank or invalid charity traceability values while keeping the product vat mapping', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-charity-2',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Charity Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'CHARITY-2',
+        'option_values' => 'A5',
+        'xero_account_code' => '201',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-CHARITY-2',
+        'meta' => [
+            'charity_vat_relief' => [
+                'charity_name' => 'Brighton Print Trust',
+                'charity_number' => '',
+                'declaration_name' => null,
+                'declared_at' => 'not-a-date',
+            ],
+        ],
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'description' => 'Charity line',
+        'quantity' => 1,
+        'unit_price' => 50,
+        'tax_total' => 0,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'CHARITY-2']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return count($payload->lines) === 2
+            && $payload->lines[0]->description === 'Charity Product - A5'
+            && $payload->lines[0]->taxType === 'ZERORATEDOUTPUT'
+            && $payload->lines[1]->description === 'Charity name: Brighton Print Trust';
+    }))->andReturn(['id' => 'invoice-charity-2']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-charity-2');
+});
+
+it('respects overridden charity config paths when building traceability lines', function (): void {
+    config()->set('lunarpanel-xero.charity.name_path', 'meta.custom_charity.name');
+    config()->set('lunarpanel-xero.charity.number_path', 'meta.custom_charity.number');
+    config()->set('lunarpanel-xero.charity.declaration_name_path', 'meta.custom_charity.declarer');
+    config()->set('lunarpanel-xero.charity.declared_at_path', 'meta.custom_charity.declared');
+
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-charity-3',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Override Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'CHARITY-3',
+        'option_values' => 'A6',
+        'xero_account_code' => '201',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-CHARITY-3',
+        'meta' => [
+            'custom_charity' => [
+                'name' => 'Override Charity',
+                'number' => 'ZX-999',
+                'declarer' => 'Alex Jones',
+                'declared' => '2026-04-10T08:30:00+01:00',
+            ],
+        ],
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'description' => 'Override line',
+        'quantity' => 1,
+        'unit_price' => 30,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'CHARITY-3']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return count($payload->lines) === 5
+            && $payload->lines[1]->description === 'Charity name: Override Charity'
+            && $payload->lines[2]->description === 'Charity number: ZX-999'
+            && $payload->lines[3]->description === 'Declaration name: Alex Jones'
+            && $payload->lines[4]->description === 'Declared at: 10 April 2026, 8:30 am';
+    }))->andReturn(['id' => 'invoice-charity-3']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-charity-3');
+});
+
+it('ships with ganda charity meta defaults in config', function (): void {
+    expect(config('lunarpanel-xero.charity.enabled'))->toBeTrue()
+        ->and(config('lunarpanel-xero.charity.meta_root_path'))->toBe('meta.charity_vat_relief')
+        ->and(config('lunarpanel-xero.charity.name_path'))->toBe('meta.charity_vat_relief.charity_name')
+        ->and(config('lunarpanel-xero.charity.number_path'))->toBe('meta.charity_vat_relief.charity_number')
+        ->and(config('lunarpanel-xero.charity.declaration_name_path'))->toBe('meta.charity_vat_relief.declaration_name')
+        ->and(config('lunarpanel-xero.charity.declared_at_path'))->toBe('meta.charity_vat_relief.declared_at');
+});
+
 it('uses the variant sku as the invoice line xero item code even when a legacy item code is stored', function (): void {
     $customer = Customer::query()->create([
         'email' => 'customer@example.com',

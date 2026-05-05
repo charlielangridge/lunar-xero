@@ -15,6 +15,10 @@ class Order extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'meta' => 'array',
+    ];
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);

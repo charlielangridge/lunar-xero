@@ -82,6 +82,7 @@ abstract class TestCase extends Orchestra
             $table->foreignId('customer_id')->nullable()->constrained('test_customers');
             $table->string('reference')->nullable();
             $table->string('customer_reference')->nullable();
+            $table->json('meta')->nullable();
             $table->string('xero_invoice_id')->nullable();
             $table->timestamps();
         });
@@ -113,6 +114,7 @@ abstract class TestCase extends Orchestra
             $table->string('description')->nullable();
             $table->unsignedInteger('quantity')->default(1);
             $table->decimal('unit_price', 12, 2)->default(0);
+            $table->decimal('tax_total', 12, 2)->default(0);
             $table->timestamps();
         });
 

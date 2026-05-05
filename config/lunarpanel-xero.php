@@ -81,4 +81,13 @@ return [
         'accounts_key' => 'lunar-xero.accounts',
         'tenants_key' => 'lunar-xero.tenants',
     ],
+
+    'charity' => [
+        'enabled' => true,
+        'meta_root_path' => 'meta.charity_vat_relief',
+        'name_path' => 'meta.charity_vat_relief.charity_name',
+        'number_path' => 'meta.charity_vat_relief.charity_number',
+        'declaration_name_path' => 'meta.charity_vat_relief.declaration_name',
+        'declared_at_path' => 'meta.charity_vat_relief.declared_at',
+    ],
 ];

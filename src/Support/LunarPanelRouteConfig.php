@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CharlieLangridge\LunarXero\Support;
 
 use Filament\Facades\Filament;
+use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 use Illuminate\Container\Container;
 
 class LunarPanelRouteConfig
@@ -13,19 +14,17 @@ class LunarPanelRouteConfig
     {
         $configuredMiddleware = config('lunarpanel-xero.routes.middleware');
 
-        if (! is_array($configuredMiddleware)) {
-            return ['web', 'auth'];
-        }
-
-        if ($configuredMiddleware !== []) {
+        if (is_array($configuredMiddleware) && $configuredMiddleware !== []) {
             return $configuredMiddleware;
         }
 
-        if (! static::hasFilamentBinding()) {
-            return ['web', 'auth'];
-        }
+        $panel = static::hasFilamentBinding()
+            ? Filament::getPanel('lunar', isStrict: false)
+            : null;
 
-        $panel = Filament::getPanel('lunar', isStrict: false);
+        if (! $panel) {
+            return ['web', 'panel:lunar', FilamentAuthenticate::class];
+        }
 
         return array_values(array_unique([
             ...$panel->getMiddleware(),
@@ -41,11 +40,14 @@ class LunarPanelRouteConfig
             return trim((string) $configuredPrefix, '/');
         }
 
-        if (! static::hasFilamentBinding()) {
+        $panel = static::hasFilamentBinding()
+            ? Filament::getPanel('lunar', isStrict: false)
+            : null;
+
+        if (! $panel) {
             return 'lunar/xero';
         }
 
-        $panel = Filament::getPanel('lunar', isStrict: false);
         $panelPath = $panel->getPath();
 
         if (filled($panelPath)) {

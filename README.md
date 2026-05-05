@@ -68,6 +68,7 @@ The main settings are:
 - `models.*`: model classes the package should use
 - `tables.*`: table names for the package tables and patched Lunar tables
 - `routes.prefix` and `routes.middleware`: override the OAuth route group when needed
+- `charity.*`: configures where charity VAT relief metadata is read from on the order for Xero invoice traceability lines
 
 ### Environment
 
@@ -140,6 +141,20 @@ During invoice sync the package:
 8. backfills payments and refunds where appropriate
 
 If the order has a `customer_reference`, that value is used as the invoice reference and is also added as a zero-value purchase-order line.
+
+If the order contains charity VAT relief metadata, the package also appends zero-value traceability lines for the charity name, charity number, declaration name, and declared-at timestamp. By default these values are read from `order.meta.charity_vat_relief.*`, matching `ganda-webstore`, and the taxable product lines still keep their VAT mapping from Lunar tax data.
+
+You can override those defaults in `config/lunarpanel-xero.php`:
+
+```php
+'charity' => [
+    'enabled' => true,
+    'name_path' => 'meta.charity_vat_relief.charity_name',
+    'number_path' => 'meta.charity_vat_relief.charity_number',
+    'declaration_name_path' => 'meta.charity_vat_relief.declaration_name',
+    'declared_at_path' => 'meta.charity_vat_relief.declared_at',
+],
+```
 
 ### Payments and refunds
 

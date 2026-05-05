@@ -5,11 +5,10 @@ declare(strict_types=1);
 use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use CharlieLangridge\LunarXero\Data\TenantData;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
-use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Support\Facades\Route;
 
 beforeEach(function (): void {
-    $this->withoutMiddleware(Authenticate::class);
+    $this->withoutMiddleware();
 });
 
 it('redirects the connect route to the xero authorization url', function (): void {

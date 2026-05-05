@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CharlieLangridge\LunarXero\Services;
 
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use CharlieLangridge\LunarXero\Data\CreditNoteAllocationPayload;
@@ -351,6 +352,10 @@ class XeroSyncService
                 taxType: $this->resolveLineTaxType($line),
             );
         })->pipe(function (Collection $lines) use ($order): array {
+            foreach ($this->buildCharityTraceabilityLines($order, $lines) as $charityLine) {
+                $lines->push($charityLine);
+            }
+
             $purchaseOrderLine = $this->buildPurchaseOrderLine($order, $lines);
 
             if ($purchaseOrderLine) {
@@ -885,7 +890,103 @@ class XeroSyncService
             quantity: 1,
             unitAmount: 0.0,
             accountCode: $accountCode,
+            taxType: 'ZERORATEDOUTPUT',
         );
+    }
+
+    /**
+     * @return array<int, InvoiceLineData>
+     */
+    protected function buildCharityTraceabilityLines(Model $order, Collection $lines): array
+    {
+        if (! (bool) config('lunarpanel-xero.charity.enabled', true)) {
+            return [];
+        }
+
+        $accountCode = $this->resolveMetadataLineAccountCode($lines);
+
+        if ($accountCode === null) {
+            return [];
+        }
+
+        $charityData = $this->resolveCharityTraceabilityData($order);
+
+        $definitions = [
+            ['label' => 'Charity name', 'value' => $charityData['charity_name']],
+            ['label' => 'Charity number', 'value' => $charityData['charity_number']],
+            ['label' => 'Declaration name', 'value' => $charityData['declaration_name']],
+            ['label' => 'Declared at', 'value' => $charityData['declared_at']],
+        ];
+
+        return collect($definitions)
+            ->filter(fn (array $definition): bool => $definition['value'] !== '')
+            ->map(fn (array $definition): InvoiceLineData => new InvoiceLineData(
+                description: "{$definition['label']}: {$definition['value']}",
+                quantity: 1.0,
+                unitAmount: 0.0,
+                accountCode: $accountCode,
+                taxType: 'ZERORATEDOUTPUT',
+            ))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{charity_name:string,charity_number:string,declaration_name:string,declared_at:string}
+     */
+    protected function resolveCharityTraceabilityData(Model $order): array
+    {
+        return [
+            'charity_name' => $this->resolveConfiguredOrderString($order, 'name_path'),
+            'charity_number' => $this->resolveConfiguredOrderString($order, 'number_path'),
+            'declaration_name' => $this->resolveConfiguredOrderString($order, 'declaration_name_path'),
+            'declared_at' => $this->resolveFormattedCharityDeclaredAt($order),
+        ];
+    }
+
+    protected function resolveConfiguredOrderString(Model $order, string $configKey): string
+    {
+        $path = config("lunarpanel-xero.charity.{$configKey}");
+
+        if (! is_string($path) || trim($path) === '') {
+            return '';
+        }
+
+        return $this->firstFilledString(data_get($order, $path));
+    }
+
+    protected function resolveFormattedCharityDeclaredAt(Model $order): string
+    {
+        $path = config('lunarpanel-xero.charity.declared_at_path');
+
+        if (! is_string($path) || trim($path) === '') {
+            return '';
+        }
+
+        $value = data_get($order, $path);
+
+        if (! is_scalar($value) || trim((string) $value) === '') {
+            return '';
+        }
+
+        try {
+            return CarbonImmutable::parse((string) $value)
+                ->locale('en_GB')
+                ->translatedFormat('j F Y, g:i a');
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
+    protected function resolveMetadataLineAccountCode(Collection $lines): ?string
+    {
+        $accountCode = $lines->first() instanceof InvoiceLineData
+            ? $lines->first()->accountCode
+            : (string) ($this->settingsRepository->getDefaultAccountCode() ?? '');
+
+        $accountCode = trim($accountCode);
+
+        return $accountCode !== '' ? $accountCode : null;
     }
 
     protected function persistCustomerContactId(?Model $customer, string $contactId): void
