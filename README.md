@@ -11,6 +11,7 @@ The package is built around Lunar's existing models and events, so it fits into 
 - Adds a Xero settings page in the Lunar admin
 - Adds Xero account code and item code fields to products and variants
 - Lets admins link or unlink customers to existing Xero contacts
+- Lets admins opt individual customers into including Lunar order line notes on Xero invoice lines
 - Syncs orders to Xero invoices
 - Syncs captured payments to Xero payments
 - Syncs refunds to Xero credit notes and payout allocations
@@ -110,7 +111,7 @@ The package also extends existing Lunar admin screens:
 
 - products get a dedicated Xero page
 - variants get a dedicated Xero page
-- customers can be linked to or unlinked from a Xero contact
+- customers can be linked to or unlinked from a Xero contact, and can opt into Xero invoice line notes
 - orders show the current invoice sync state, Xero invoice ID, last error, and a manual sync action
 
 ## Sync behaviour
@@ -148,6 +149,13 @@ Synced orders can contain these Xero invoice fields:
 - `xero_online_invoice_url`: Xero's customer-safe online invoice URL, fetched only for customer-visible statuses
 
 If the order has a `customer_reference`, that value is used as the invoice reference and is also added as a zero-value purchase-order line.
+
+Customers can be opted into order line notes from the Lunar customer edit page with the `Include order line notes on Xero invoices` toggle. The underlying `xero_include_order_line_notes` customer field defaults to `false`. When it is enabled and an order line has non-blank `notes`, the package appends the notes underneath the existing Xero invoice line description:
+
+```text
+Existing description
+Notes: Order line notes
+```
 
 If the order contains charity VAT relief metadata, the package also appends zero-value traceability lines for the charity name, charity number, declaration name, and declared-at timestamp. By default these values are read from `order.meta.charity_vat_relief.*`, matching `ganda-webstore`, and the taxable product lines still keep their VAT mapping from Lunar tax data.
 

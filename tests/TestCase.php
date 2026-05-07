@@ -55,6 +55,7 @@ abstract class TestCase extends Orchestra
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->string('xero_contact_id')->nullable();
+            $table->boolean('xero_include_order_line_notes')->default(false);
             $table->timestamps();
         });
 
@@ -112,6 +113,7 @@ abstract class TestCase extends Orchestra
             $table->foreignId('product_id')->nullable()->constrained('test_products');
             $table->foreignId('product_variant_id')->nullable()->constrained('test_product_variants');
             $table->string('description')->nullable();
+            $table->text('notes')->nullable();
             $table->unsignedInteger('quantity')->default(1);
             $table->decimal('unit_price', 12, 2)->default(0);
             $table->decimal('tax_total', 12, 2)->default(0);

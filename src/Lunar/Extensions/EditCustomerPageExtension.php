@@ -8,6 +8,7 @@ use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -100,6 +101,9 @@ class EditCustomerPageExtension extends EditPageExtension
 
                             return new HtmlString('<a href="'.$url.'" target="_blank" rel="noopener noreferrer" class="fi-link text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">Open in Xero</a>');
                         }),
+                    Toggle::make('xero_include_order_line_notes')
+                        ->label('Include order line notes on Xero invoices')
+                        ->default(false),
                 ])
                 ->columnSpan(2),
         ]);

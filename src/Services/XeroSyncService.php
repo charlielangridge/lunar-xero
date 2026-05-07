@@ -339,13 +339,13 @@ class XeroSyncService
             throw new XeroSyncException('Cannot create a Xero invoice for an order without lines.');
         }
 
-        return $lines->map(function ($line): InvoiceLineData {
+        return $lines->map(function ($line) use ($order): InvoiceLineData {
             [$variant, $product] = $this->resolveLineContext($line);
             $accountCode = $this->resolveAccountCode($variant, $product);
             $itemCode = $this->resolveItemCode($line, $variant, $product);
 
             return new InvoiceLineData(
-                description: $this->resolveInvoiceLineDescription($line, $variant, $product),
+                description: $this->resolveInvoiceLineDescription($line, $variant, $product, $order),
                 quantity: (float) ($line->quantity ?? 1),
                 unitAmount: $this->moneyToFloat($line->unit_price ?? $line->sub_total ?? 0),
                 accountCode: $accountCode,
@@ -552,7 +552,7 @@ class XeroSyncService
         $ratio = $refundAmount / $grossTotal;
 
         $lines = $orderLines
-            ->map(function ($line) use ($ratio): ?InvoiceLineData {
+            ->map(function ($line) use ($order, $ratio): ?InvoiceLineData {
                 $grossAmount = $this->resolveLineGrossAmount($line);
 
                 if ($grossAmount <= 0.0) {
@@ -567,7 +567,7 @@ class XeroSyncService
                 }
 
                 return new InvoiceLineData(
-                    description: $this->resolveInvoiceLineDescription($line, $variant, $product),
+                    description: $this->resolveInvoiceLineDescription($line, $variant, $product, $order),
                     quantity: 1.0,
                     unitAmount: $netAmount,
                     accountCode: $this->resolveAccountCode($variant, $product),
@@ -822,20 +822,48 @@ class XeroSyncService
         return strtolower(trim((string) ($payment->type ?? ''))) === 'refund';
     }
 
-    protected function resolveInvoiceLineDescription(mixed $line, ?Model $variant, ?Model $product): string
+    protected function resolveInvoiceLineDescription(mixed $line, ?Model $variant, ?Model $product, ?Model $order = null): string
     {
         $catalogItemName = $this->resolveCatalogItemName($line, $variant, $product);
 
         if ($variant) {
-            return $catalogItemName;
+            return $this->appendOrderLineNotes($catalogItemName, $line, $order);
         }
 
-        return $this->firstFilledString(
+        $description = $this->firstFilledString(
             is_object($line) ? ($line->description ?? null) : null,
             is_object($line) ? ($line->identifier ?? null) : null,
             $catalogItemName,
             'Order line',
         );
+
+        return $this->appendOrderLineNotes($description, $line, $order);
+    }
+
+    protected function appendOrderLineNotes(string $description, mixed $line, ?Model $order): string
+    {
+        if (! $this->shouldIncludeOrderLineNotes($order)) {
+            return $description;
+        }
+
+        $notes = is_object($line) ? trim((string) ($line->notes ?? '')) : '';
+
+        if ($notes === '') {
+            return $description;
+        }
+
+        return "{$description}\nNotes: {$notes}";
+    }
+
+    protected function shouldIncludeOrderLineNotes(?Model $order): bool
+    {
+        if (! $order) {
+            return false;
+        }
+
+        $customer = $this->resolveOrderCustomer($order);
+
+        return (bool) ($customer?->xero_include_order_line_notes ?? false);
     }
 
     protected function resolveCatalogItemName(mixed $line, ?Model $variant, ?Model $product): string

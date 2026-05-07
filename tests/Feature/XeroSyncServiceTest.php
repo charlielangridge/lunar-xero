@@ -84,6 +84,145 @@ it('syncs an order invoice and stores xero ids', function (): void {
         ->and($variant->fresh()->xero_item_code)->toBe('SKU-1');
 });
 
+it('does not include order line notes on xero invoice lines by default', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-default-notes',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Default Notes Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'DEFAULT-NOTES-1',
+        'option_values' => 'A4',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-DEFAULT-NOTES',
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'notes' => 'Please use the supplied artwork on side two.',
+        'quantity' => 1,
+        'unit_price' => 20,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->with(Mockery::on(function (array $payload): bool {
+        return $payload['description'] === 'Default Notes Product - A4';
+    }))->andReturn(['item_code' => 'DEFAULT-NOTES-1']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->lines[0]->description === 'Default Notes Product - A4';
+    }))->andReturn(['id' => 'invoice-default-notes']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($customer->fresh()->xero_include_order_line_notes)->toBeFalse()
+        ->and($order->fresh()->xero_invoice_id)->toBe('invoice-default-notes');
+});
+
+it('appends order line notes to xero invoice lines for enabled customers', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-enabled-notes',
+        'xero_include_order_line_notes' => true,
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Enabled Notes Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'ENABLED-NOTES-1',
+        'option_values' => 'Silk',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-ENABLED-NOTES',
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'notes' => 'Deliver with the event batch.',
+        'quantity' => 1,
+        'unit_price' => 30,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->with(Mockery::on(function (array $payload): bool {
+        return $payload['description'] === 'Enabled Notes Product - Silk';
+    }))->andReturn(['item_code' => 'ENABLED-NOTES-1']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->lines[0]->description === "Enabled Notes Product - Silk\nNotes: Deliver with the event batch.";
+    }))->andReturn(['id' => 'invoice-enabled-notes']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-enabled-notes');
+});
+
+it('does not append blank order line notes for enabled customers', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-blank-notes',
+        'xero_include_order_line_notes' => true,
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Blank Notes Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'BLANK-NOTES-1',
+        'option_values' => 'Gloss',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-BLANK-NOTES',
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'notes' => '   ',
+        'quantity' => 1,
+        'unit_price' => 30,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'BLANK-NOTES-1']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->lines[0]->description === 'Blank Notes Product - Gloss';
+    }))->andReturn(['id' => 'invoice-blank-notes']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-blank-notes');
+});
+
 it('stores the online invoice url for customer visible xero invoices', function (): void {
     app(XeroSettingsRepository::class)->setInvoiceStatus('AUTHORISED');
 

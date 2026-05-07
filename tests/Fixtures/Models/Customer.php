@@ -13,6 +13,10 @@ class Customer extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'xero_include_order_line_notes' => 'boolean',
+    ];
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
