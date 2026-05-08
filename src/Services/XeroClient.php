@@ -45,6 +45,7 @@ use XeroAPI\XeroPHP\Models\Accounting\Payment;
 use XeroAPI\XeroPHP\Models\Accounting\Payments;
 use XeroAPI\XeroPHP\Models\Accounting\PaymentTermType;
 use XeroAPI\XeroPHP\Models\Accounting\Phone;
+use XeroAPI\XeroPHP\Models\Accounting\RequestEmpty;
 
 class XeroClient implements XeroClientInterface
 {
@@ -409,6 +410,42 @@ class XeroClient implements XeroClientInterface
         $url = $onlineInvoice->getOnlineInvoiceUrl();
 
         return filled($url) ? (string) $url : null;
+    }
+
+    public function getInvoice(string $invoiceId): array
+    {
+        try {
+            $invoice = $this->fetchInvoice($invoiceId);
+        } catch (Throwable $throwable) {
+            throw $this->wrapApiThrowable($throwable, 'fetch invoice from Xero');
+        }
+
+        if (! $invoice instanceof Invoice) {
+            throw new XeroTransportException('Xero did not return the invoice.');
+        }
+
+        return [
+            'id' => (string) $invoice->getInvoiceID(),
+            'number' => $invoice->getInvoiceNumber(),
+            'status' => $invoice->getStatus(),
+            'sent_to_contact' => (bool) $invoice->getSentToContact(),
+        ];
+    }
+
+    public function emailInvoice(string $invoiceId): void
+    {
+        $this->guardWriteOperation('email invoices');
+
+        try {
+            $this->accountingApi()->emailInvoice(
+                $this->tenantId(),
+                $invoiceId,
+                new RequestEmpty,
+                Str::uuid()->toString(),
+            );
+        } catch (Throwable $throwable) {
+            throw $this->wrapApiThrowable($throwable, 'email invoice from Xero');
+        }
     }
 
     public function createCreditNote(CreditNotePayload $payload): array

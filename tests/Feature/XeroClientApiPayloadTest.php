@@ -30,6 +30,7 @@ use XeroAPI\XeroPHP\Models\Accounting\Payment;
 use XeroAPI\XeroPHP\Models\Accounting\Payments;
 use XeroAPI\XeroPHP\Models\Accounting\PaymentTerm;
 use XeroAPI\XeroPHP\Models\Accounting\PaymentTermType;
+use XeroAPI\XeroPHP\Models\Accounting\RequestEmpty;
 
 beforeEach(function (): void {
     config()->set('lunarpanel-xero.oauth.read_only', false);
@@ -249,6 +250,48 @@ it('fetches an online invoice url from xero', function (): void {
         ->andReturn($response);
 
     expect(fakeXeroClient($api)->getOnlineInvoiceUrl('invoice-123'))->toBe('https://in.xero.com/invoice/invoice-123');
+});
+
+it('fetches invoice status and sent to contact state', function (): void {
+    $invoice = new Invoice;
+    $invoice->setInvoiceID('invoice-sent-123');
+    $invoice->setInvoiceNumber('INV-SENT-123');
+    $invoice->setStatus('AUTHORISED');
+    $invoice->setSentToContact(true);
+
+    $response = new Invoices;
+    $response->setInvoices([$invoice]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('getInvoice')
+        ->once()
+        ->with('tenant-123', 'invoice-sent-123')
+        ->andReturn($response);
+
+    expect(fakeXeroClient($api)->getInvoice('invoice-sent-123'))->toBe([
+        'id' => 'invoice-sent-123',
+        'number' => 'INV-SENT-123',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => true,
+    ]);
+});
+
+it('emails invoices using xero invoice email endpoint', function (): void {
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('emailInvoice')
+        ->once()
+        ->withArgs(function (
+            string $tenantId,
+            string $invoiceId,
+            RequestEmpty $request,
+            string $idempotencyKey,
+        ): bool {
+            return $tenantId === 'tenant-123'
+                && $invoiceId === 'invoice-email-123'
+                && $idempotencyKey !== '';
+        });
+
+    fakeXeroClient($api)->emailInvoice('invoice-email-123');
 });
 
 it('creates credit note payments using the xero payments payload and idempotency key parameter', function (): void {

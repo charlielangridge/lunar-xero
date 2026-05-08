@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use CharlieLangridge\LunarXero\Jobs\EmailOrderInvoiceToXero;
 use CharlieLangridge\LunarXero\Jobs\SyncOrderInvoiceToXero;
 use CharlieLangridge\LunarXero\Jobs\SyncPaymentToXero;
 use CharlieLangridge\LunarXero\Listeners\DispatchOrderInvoiceSync;
 use CharlieLangridge\LunarXero\Listeners\DispatchPaymentSync;
+use CharlieLangridge\LunarXero\Services\XeroSyncService;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Order;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Payment;
 use Illuminate\Support\Facades\Queue;
@@ -45,4 +47,13 @@ it('dispatches payment syncs onto the configured xero queue', function (): void 
     ]);
 
     Queue::assertPushedOn('xero', SyncPaymentToXero::class);
+});
+
+it('email order invoice job delegates to the sync service', function (): void {
+    $service = Mockery::mock(XeroSyncService::class);
+    $service->shouldReceive('syncAndEmailOrderInvoiceById')
+        ->once()
+        ->with(123);
+
+    (new EmailOrderInvoiceToXero(123))->handle($service);
 });

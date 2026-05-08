@@ -43,6 +43,14 @@ class XeroSyncService
         return $this->syncOrderInvoice($order);
     }
 
+    public function syncAndEmailOrderInvoiceById(int|string $orderId): array
+    {
+        $orderClass = $this->modelResolver->orderModel();
+        $order = $orderClass::query()->findOrFail($orderId);
+
+        return $this->syncAndEmailOrderInvoice($order);
+    }
+
     public function syncPaymentById(int|string $paymentId, ?string $paymentClass = null): array
     {
         $paymentClass ??= Transaction::class;
@@ -73,12 +81,7 @@ class XeroSyncService
         );
 
         try {
-            $payload = new InvoicePayload(
-                contactId: $this->resolveCustomerContactId($order),
-                status: $this->settingsRepository->getInvoiceStatus(),
-                reference: $this->resolveInvoiceReference($order),
-                lines: $this->buildInvoiceLines($order),
-            );
+            $payload = $this->buildOrderInvoicePayload($order);
 
             if (filled($order->xero_invoice_id) && ! $this->shouldMutateExistingInvoice($order)) {
                 $response = [
@@ -103,6 +106,46 @@ class XeroSyncService
             if ($paymentResults !== []) {
                 $response['payments'] = $paymentResults;
             }
+
+            return $this->completeLog($log, SyncStatus::Succeeded, $response);
+        } catch (Throwable $throwable) {
+            $this->failLog($log, $throwable);
+
+            throw $throwable;
+        }
+    }
+
+    public function syncAndEmailOrderInvoice(Model $order): array
+    {
+        $log = $this->startLog(
+            operation: SyncOperation::InvoiceEmail,
+            resource: $order,
+            payload: ['order_id' => $order->getKey()],
+        );
+
+        try {
+            $payload = $this->buildOrderInvoicePayload($order, 'AUTHORISED');
+
+            $invoiceId = data_get($order, 'xero_invoice_id');
+
+            $response = filled($invoiceId)
+                ? $this->client->updateInvoice((string) $invoiceId, $payload)
+                : $this->client->createInvoice($payload);
+
+            $this->persistInvoiceDetails($order, $response);
+
+            $invoice = $this->client->getInvoice((string) $response['id']);
+            $response['sent_to_contact'] = $invoice['sent_to_contact'];
+
+            if ($invoice['sent_to_contact']) {
+                $response['email'] = 'skipped_already_sent';
+
+                return $this->completeLog($log, SyncStatus::Succeeded, $response);
+            }
+
+            $this->client->emailInvoice((string) $response['id']);
+
+            $response['email'] = 'sent';
 
             return $this->completeLog($log, SyncStatus::Succeeded, $response);
         } catch (Throwable $throwable) {
@@ -610,6 +653,16 @@ class XeroSyncService
         ]);
     }
 
+    protected function buildOrderInvoicePayload(Model $order, ?string $status = null): InvoicePayload
+    {
+        return new InvoicePayload(
+            contactId: $this->resolveCustomerContactId($order),
+            status: $status ?? $this->settingsRepository->getInvoiceStatus(),
+            reference: $this->resolveInvoiceReference($order),
+            lines: $this->buildInvoiceLines($order),
+        );
+    }
+
     protected function persistInvoiceDetails(Model $order, array &$response): void
     {
         $invoiceId = (string) $response['id'];
@@ -863,7 +916,7 @@ class XeroSyncService
 
         $customer = $this->resolveOrderCustomer($order);
 
-        return (bool) ($customer?->xero_include_order_line_notes ?? false);
+        return (bool) data_get($customer, 'xero_include_order_line_notes', false);
     }
 
     protected function resolveCatalogItemName(mixed $line, ?Model $variant, ?Model $product): string

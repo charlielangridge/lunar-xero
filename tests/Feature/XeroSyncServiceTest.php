@@ -23,6 +23,39 @@ beforeEach(function (): void {
     Queue::fake();
 });
 
+function createXeroInvoiceEmailSyncOrder(?string $invoiceId = null): Order
+{
+    $customer = Customer::query()->create([
+        'email' => 'account@example.com',
+        'first_name' => 'Account',
+        'last_name' => 'Customer',
+        'xero_contact_id' => 'contact-account-1',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'xero_item_code' => 'ACCOUNT-ITEM',
+        'attribute_data' => ['name' => 'Account Product'],
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-EMAIL-1',
+        'customer_reference' => 'PO-EMAIL-1',
+        'xero_invoice_id' => $invoiceId,
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'description' => 'Account line',
+        'quantity' => 1,
+        'unit_price' => 49.99,
+    ]);
+
+    return $order;
+}
+
 it('syncs an order invoice and stores xero ids', function (): void {
     $customer = Customer::query()->create([
         'email' => 'customer@example.com',
@@ -82,6 +115,92 @@ it('syncs an order invoice and stores xero ids', function (): void {
         ->and($order->fresh()->xero_online_invoice_url)->toBeNull()
         ->and($customer->fresh()->xero_contact_id)->toBe('contact-1')
         ->and($variant->fresh()->xero_item_code)->toBe('SKU-1');
+});
+
+it('syncs an authorised invoice and emails it when xero has not sent it to the contact', function (): void {
+    $order = createXeroInvoiceEmailSyncOrder();
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->status === 'AUTHORISED'
+            && $payload->reference === 'PO-EMAIL-1'
+            && $payload->contactId === 'contact-account-1';
+    }))->andReturn(['id' => 'invoice-email-1', 'number' => 'INV-EMAIL-1', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-1')->andReturn('https://in.xero.com/invoice/invoice-email-1');
+    $mock->shouldReceive('getInvoice')->once()->with('invoice-email-1')->andReturn([
+        'id' => 'invoice-email-1',
+        'number' => 'INV-EMAIL-1',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('emailInvoice')->once()->with('invoice-email-1');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncAndEmailOrderInvoice($order->fresh(['customer', 'lines.product']));
+
+    $freshOrder = $order->fresh();
+    $latestLog = XeroSyncLog::query()->where('operation', SyncOperation::InvoiceEmail->value)->latest('id')->first();
+
+    expect($result['email'])->toBe('sent')
+        ->and($result['sent_to_contact'])->toBeFalse()
+        ->and($freshOrder->xero_invoice_id)->toBe('invoice-email-1')
+        ->and($freshOrder->xero_invoice_status)->toBe('AUTHORISED')
+        ->and($freshOrder->xero_online_invoice_url)->toBe('https://in.xero.com/invoice/invoice-email-1')
+        ->and($latestLog?->status)->toBe(SyncStatus::Succeeded)
+        ->and($latestLog?->response['email'])->toBe('sent');
+});
+
+it('updates an existing invoice with latest lunar details before emailing it', function (): void {
+    $order = createXeroInvoiceEmailSyncOrder('invoice-email-existing');
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('updateInvoice')->once()->with('invoice-email-existing', Mockery::on(function ($payload): bool {
+        return $payload->status === 'AUTHORISED'
+            && $payload->reference === 'PO-EMAIL-1'
+            && $payload->lines[0]->description === 'Account line';
+    }))->andReturn(['id' => 'invoice-email-existing', 'number' => 'INV-EMAIL-EXISTING', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-existing')->andReturn('https://in.xero.com/invoice/invoice-email-existing');
+    $mock->shouldReceive('getInvoice')->once()->with('invoice-email-existing')->andReturn([
+        'id' => 'invoice-email-existing',
+        'number' => 'INV-EMAIL-EXISTING',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('emailInvoice')->once()->with('invoice-email-existing');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncAndEmailOrderInvoice($order->fresh(['customer', 'lines.product']));
+
+    expect($result['email'])->toBe('sent')
+        ->and($order->fresh()->xero_invoice_status)->toBe('AUTHORISED');
+});
+
+it('does not email an invoice that xero has already sent to the contact', function (): void {
+    $order = createXeroInvoiceEmailSyncOrder('invoice-email-sent');
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('updateInvoice')->once()->andReturn(['id' => 'invoice-email-sent', 'number' => 'INV-SENT', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-sent')->andReturn('https://in.xero.com/invoice/invoice-email-sent');
+    $mock->shouldReceive('getInvoice')->once()->with('invoice-email-sent')->andReturn([
+        'id' => 'invoice-email-sent',
+        'number' => 'INV-SENT',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => true,
+    ]);
+    $mock->shouldNotReceive('emailInvoice');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncAndEmailOrderInvoice($order->fresh(['customer', 'lines.product']));
+
+    $latestLog = XeroSyncLog::query()->where('operation', SyncOperation::InvoiceEmail->value)->latest('id')->first();
+
+    expect($result['email'])->toBe('skipped_already_sent')
+        ->and($result['sent_to_contact'])->toBeTrue()
+        ->and($latestLog?->status)->toBe(SyncStatus::Succeeded)
+        ->and($latestLog?->response['email'])->toBe('skipped_already_sent');
 });
 
 it('does not include order line notes on xero invoice lines by default', function (): void {

@@ -13,6 +13,7 @@ The package is built around Lunar's existing models and events, so it fits into 
 - Lets admins link or unlink customers to existing Xero contacts
 - Lets admins opt individual customers into including Lunar order line notes on Xero invoice lines
 - Syncs orders to Xero invoices
+- Can email authorised Xero invoices to customers while avoiding duplicate sends
 - Syncs captured payments to Xero payments
 - Syncs refunds to Xero credit notes and payout allocations
 - Logs each sync attempt so failures and skips are inspectable
@@ -141,6 +142,8 @@ During invoice sync the package:
 7. stores the returned Xero invoice ID, invoice number, invoice status, and customer online invoice URL on the order
 8. backfills payments and refunds where appropriate
 
+For account or pay-later order flows, the package can also sync and email an invoice in one queued operation. That flow always pushes the latest Lunar order details to Xero first, creates or updates the invoice as `AUTHORISED`, fetches the invoice from Xero, and only calls Xero's email endpoint when `sent_to_contact` is still false. If the invoice has already been sent from Xero or by a previous package run, the email step is skipped and logged as successful.
+
 Synced orders can contain these Xero invoice fields:
 
 - `xero_invoice_id`: the Xero invoice UUID
@@ -268,7 +271,7 @@ php artisan queue:work --queue=xero,default
 
 Each sync attempt writes to `xero_sync_logs`, including:
 
-- operation type
+- operation type, such as `invoice`, `invoice_email`, `payment`, or `credit_note`
 - resource type and ID
 - payload snapshot
 - external reference

@@ -62,6 +62,13 @@ interface XeroClientInterface
     public function getOnlineInvoiceUrl(string $invoiceId): ?string;
 
     /**
+     * @return array{id:string,number:?string,status:?string,sent_to_contact:bool}
+     */
+    public function getInvoice(string $invoiceId): array;
+
+    public function emailInvoice(string $invoiceId): void;
+
+    /**
      * @return array{id:string,number:?string,status:?string}
      */
     public function createCreditNote(CreditNotePayload $payload): array;

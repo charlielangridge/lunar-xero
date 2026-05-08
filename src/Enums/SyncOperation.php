@@ -10,5 +10,6 @@ enum SyncOperation: string
     case Payment = 'payment';
     case CreditNote = 'credit_note';
     case Contact = 'contact';
+    case InvoiceEmail = 'invoice_email';
     case Item = 'item';
 }
