@@ -66,6 +66,11 @@ interface XeroClientInterface
      */
     public function getInvoice(string $invoiceId): array;
 
+    /**
+     * @return array{recipient_count:int,changed:bool,order_email_added:bool,duplicate_count:int}
+     */
+    public function prepareInvoiceEmailRecipients(string $contactId, string $orderEmail): array;
+
     public function emailInvoice(string $invoiceId): void;
 
     /**

@@ -32,6 +32,7 @@ use XeroAPI\XeroPHP\Models\Accounting\Address;
 use XeroAPI\XeroPHP\Models\Accounting\Allocation;
 use XeroAPI\XeroPHP\Models\Accounting\Allocations;
 use XeroAPI\XeroPHP\Models\Accounting\Contact;
+use XeroAPI\XeroPHP\Models\Accounting\ContactPerson;
 use XeroAPI\XeroPHP\Models\Accounting\Contacts;
 use XeroAPI\XeroPHP\Models\Accounting\CreditNote;
 use XeroAPI\XeroPHP\Models\Accounting\CreditNotes;
@@ -432,6 +433,112 @@ class XeroClient implements XeroClientInterface
         ];
     }
 
+    public function prepareInvoiceEmailRecipients(string $contactId, string $orderEmail): array
+    {
+        $orderEmailKey = $this->normalizeEmailAddress($orderEmail);
+
+        if ($orderEmailKey === '') {
+            throw new XeroTransportException('Unable to prepare invoice email recipients without an order email address.');
+        }
+
+        $contact = $this->fetchContact($contactId);
+
+        if (! $contact instanceof Contact) {
+            throw new XeroTransportException('Xero did not return the contact for invoice email recipient preparation.');
+        }
+
+        $seen = [];
+        $recipientCount = 0;
+        $duplicateCount = 0;
+        $changed = false;
+        $orderEmailAdded = false;
+        $orderEmailIncluded = false;
+
+        $primaryEmailKey = $this->normalizeEmailAddress($contact->getEmailAddress());
+
+        if ($primaryEmailKey !== '') {
+            $seen[$primaryEmailKey] = true;
+            $recipientCount++;
+            $orderEmailIncluded = $primaryEmailKey === $orderEmailKey;
+        }
+
+        $contactPersons = $contact->getContactPersons() ?? [];
+
+        foreach ($contactPersons as $person) {
+            $personEmailKey = $this->normalizeEmailAddress($person->getEmailAddress());
+
+            if ($personEmailKey === '') {
+                continue;
+            }
+
+            $included = (bool) $person->getIncludeInEmails();
+
+            if (! $included && $personEmailKey === $orderEmailKey && ! $orderEmailIncluded) {
+                $person->setIncludeInEmails(true);
+                $included = true;
+                $changed = true;
+            }
+
+            if (! $included) {
+                continue;
+            }
+
+            if (isset($seen[$personEmailKey])) {
+                $person->setIncludeInEmails(false);
+                $duplicateCount++;
+                $changed = true;
+
+                continue;
+            }
+
+            $seen[$personEmailKey] = true;
+            $recipientCount++;
+
+            if ($personEmailKey === $orderEmailKey) {
+                $orderEmailIncluded = true;
+            }
+        }
+
+        if (! $orderEmailIncluded) {
+            $contactPersons[] = (new ContactPerson)
+                ->setEmailAddress(trim($orderEmail))
+                ->setIncludeInEmails(true);
+
+            $contact->setContactPersons($contactPersons);
+            $recipientCount++;
+            $changed = true;
+            $orderEmailAdded = true;
+        }
+
+        if ($changed) {
+            $contactUpdate = new Contact;
+            $contactUpdate->setContactPersons($contactPersons);
+
+            $contacts = new Contacts;
+            $contacts->setContacts([$contactUpdate]);
+
+            $this->guardWriteOperation('update contacts');
+
+            try {
+                $this->accountingApi()->updateContact(
+                    $this->tenantId(),
+                    $contactId,
+                    $contacts,
+                    Str::uuid()->toString(),
+                );
+            } catch (Throwable $throwable) {
+                throw $this->wrapApiThrowable($throwable, 'prepare invoice email recipients in Xero');
+            }
+        }
+
+        return [
+            'recipient_count' => $recipientCount,
+            'changed' => $changed,
+            'order_email_added' => $orderEmailAdded,
+            'duplicate_count' => $duplicateCount,
+        ];
+    }
+
     public function emailInvoice(string $invoiceId): void
     {
         $this->guardWriteOperation('email invoices');
@@ -804,6 +911,11 @@ class XeroClient implements XeroClientInterface
         }
 
         return null;
+    }
+
+    protected function normalizeEmailAddress(?string $email): string
+    {
+        return mb_strtolower(trim((string) $email));
     }
 
     protected function calculateDueDateFromContact(Contact $contact, CarbonImmutable $issueDate): CarbonImmutable

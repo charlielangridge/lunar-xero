@@ -86,6 +86,26 @@ it('queues an invoice resync when the order reference changes on a synced order'
     });
 });
 
+it('queues an invoice resync when the purchase order reference changes on a synced order', function (): void {
+    Queue::fake();
+
+    $order = Order::query()->create([
+        'reference' => 'ORDER-PO-1',
+        'customer_reference' => 'CUSTOMER-PO-1',
+        'meta' => ['purchase_order' => 'PO-100'],
+        'xero_invoice_id' => 'invoice-po-1',
+    ]);
+
+    Queue::clearResolvedInstances();
+    Queue::fake();
+
+    $order->forceFill(['meta' => ['purchase_order' => 'PO-200']])->save();
+
+    Queue::assertPushed(SyncOrderInvoiceToXero::class, function (SyncOrderInvoiceToXero $job) use ($order): bool {
+        return $job->orderId === $order->id;
+    });
+});
+
 it('does not queue an invoice resync when unrelated order fields change', function (): void {
     Queue::fake();
 
@@ -99,6 +119,24 @@ it('does not queue an invoice resync when unrelated order fields change', functi
     Queue::fake();
 
     $order->forceFill(['xero_invoice_id' => 'invoice-4'])->save();
+
+    Queue::assertNotPushed(SyncOrderInvoiceToXero::class);
+});
+
+it('does not queue an invoice resync when unrelated order meta changes', function (): void {
+    Queue::fake();
+
+    $order = Order::query()->create([
+        'reference' => 'ORDER-5',
+        'customer_reference' => 'PO-100',
+        'meta' => ['purchase_order' => 'PO-100', 'note' => 'before'],
+        'xero_invoice_id' => 'invoice-5',
+    ]);
+
+    Queue::clearResolvedInstances();
+    Queue::fake();
+
+    $order->forceFill(['meta' => ['purchase_order' => 'PO-100', 'note' => 'after']])->save();
 
     Queue::assertNotPushed(SyncOrderInvoiceToXero::class);
 });

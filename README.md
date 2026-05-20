@@ -151,7 +151,9 @@ Synced orders can contain these Xero invoice fields:
 - `xero_invoice_status`: the latest status returned by Xero, such as `DRAFT`, `AUTHORISED`, or `PAID`
 - `xero_online_invoice_url`: Xero's customer-safe online invoice URL, fetched only for customer-visible statuses
 
-If the order has a `customer_reference`, that value is used as the invoice reference and is also added as a zero-value purchase-order line.
+Invoice references are composed from the order reference, purchase order reference, and customer reference, joined with ` - `. Blank values and duplicate values are skipped, so an order with `reference` of `GM-W-ABCDE` and `customer_reference` of `PO-1001` becomes `GM-W-ABCDE - PO-1001`. If the order stores a purchase order in `meta.purchase_order`, that value is used between the order reference and customer reference, such as `GM-W-ABCDE - PO-1001 - Customer Ref`.
+
+The zero-value purchase-order line uses `meta.purchase_order` when present, falling back to `customer_reference` for stores that only use Lunar's built-in customer reference field.
 
 Customers can be opted into order line notes from the Lunar customer edit page with the `Include order line notes on Xero invoices` toggle. The underlying `xero_include_order_line_notes` customer field defaults to `false`. When it is enabled and an order line has non-blank `notes`, the package appends the notes underneath the existing Xero invoice line description:
 

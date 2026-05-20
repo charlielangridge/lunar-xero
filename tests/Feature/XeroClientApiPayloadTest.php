@@ -17,6 +17,7 @@ use XeroAPI\XeroPHP\Models\Accounting\Allocation;
 use XeroAPI\XeroPHP\Models\Accounting\Allocations;
 use XeroAPI\XeroPHP\Models\Accounting\Bill;
 use XeroAPI\XeroPHP\Models\Accounting\Contact;
+use XeroAPI\XeroPHP\Models\Accounting\ContactPerson;
 use XeroAPI\XeroPHP\Models\Accounting\Contacts;
 use XeroAPI\XeroPHP\Models\Accounting\CreditNote;
 use XeroAPI\XeroPHP\Models\Accounting\CreditNotes;
@@ -292,6 +293,155 @@ it('emails invoices using xero invoice email endpoint', function (): void {
         });
 
     fakeXeroClient($api)->emailInvoice('invoice-email-123');
+});
+
+it('adds the order email as a xero contact person before emailing when it is missing', function (): void {
+    $contact = new Contact;
+    $contact->setContactID('contact-recipient-1');
+    $contact->setName('Recipient Co');
+    $contact->setEmailAddress('accounts@example.com');
+    $contact->setContactPersons([
+        (new ContactPerson)
+            ->setFirstName('Existing')
+            ->setLastName('Recipient')
+            ->setEmailAddress('existing@example.com')
+            ->setIncludeInEmails(true),
+    ]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('updateContact')
+        ->once()
+        ->withArgs(function (string $tenantId, string $contactId, Contacts $contacts): bool {
+            $people = $contacts->getContacts()[0]->getContactPersons();
+
+            return $tenantId === 'tenant-123'
+                && $contactId === 'contact-recipient-1'
+                && count($people) === 2
+                && $people[0]->getEmailAddress() === 'existing@example.com'
+                && $people[0]->getIncludeInEmails() === true
+                && $people[1]->getEmailAddress() === 'order@example.com'
+                && $people[1]->getIncludeInEmails() === true;
+        });
+
+    $result = fakeXeroClient($api, $contact)->prepareInvoiceEmailRecipients('contact-recipient-1', 'order@example.com');
+
+    expect($result)->toBe([
+        'recipient_count' => 3,
+        'changed' => true,
+        'order_email_added' => true,
+        'duplicate_count' => 0,
+    ]);
+});
+
+it('deduplicates xero contact person recipients before emailing', function (): void {
+    $contact = new Contact;
+    $contact->setContactID('contact-recipient-2');
+    $contact->setName('Recipient Co');
+    $contact->setEmailAddress('Order@example.com');
+    $contact->setContactPersons([
+        (new ContactPerson)
+            ->setFirstName('Duplicate')
+            ->setLastName('Primary')
+            ->setEmailAddress('order@example.com')
+            ->setIncludeInEmails(true),
+        (new ContactPerson)
+            ->setFirstName('Accounts')
+            ->setLastName('Team')
+            ->setEmailAddress('accounts@example.com')
+            ->setIncludeInEmails(true),
+        (new ContactPerson)
+            ->setFirstName('Accounts')
+            ->setLastName('Duplicate')
+            ->setEmailAddress('ACCOUNTS@example.com')
+            ->setIncludeInEmails(true),
+    ]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('updateContact')
+        ->once()
+        ->withArgs(function (string $tenantId, string $contactId, Contacts $contacts): bool {
+            $people = $contacts->getContacts()[0]->getContactPersons();
+
+            return $tenantId === 'tenant-123'
+                && $contactId === 'contact-recipient-2'
+                && $people[0]->getEmailAddress() === 'order@example.com'
+                && $people[0]->getIncludeInEmails() === false
+                && $people[1]->getEmailAddress() === 'accounts@example.com'
+                && $people[1]->getIncludeInEmails() === true
+                && $people[2]->getEmailAddress() === 'ACCOUNTS@example.com'
+                && $people[2]->getIncludeInEmails() === false;
+        });
+
+    $result = fakeXeroClient($api, $contact)->prepareInvoiceEmailRecipients('contact-recipient-2', ' order@example.com ');
+
+    expect($result)->toBe([
+        'recipient_count' => 2,
+        'changed' => true,
+        'order_email_added' => false,
+        'duplicate_count' => 2,
+    ]);
+});
+
+it('enables an existing matching xero contact person without adding another recipient', function (): void {
+    $contact = new Contact;
+    $contact->setContactID('contact-recipient-3');
+    $contact->setName('Recipient Co');
+    $contact->setEmailAddress('accounts@example.com');
+    $contact->setContactPersons([
+        (new ContactPerson)
+            ->setFirstName('Order')
+            ->setLastName('Recipient')
+            ->setEmailAddress('order@example.com')
+            ->setIncludeInEmails(false),
+    ]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldReceive('updateContact')
+        ->once()
+        ->withArgs(function (string $tenantId, string $contactId, Contacts $contacts): bool {
+            $people = $contacts->getContacts()[0]->getContactPersons();
+
+            return $tenantId === 'tenant-123'
+                && $contactId === 'contact-recipient-3'
+                && count($people) === 1
+                && $people[0]->getEmailAddress() === 'order@example.com'
+                && $people[0]->getIncludeInEmails() === true;
+        });
+
+    $result = fakeXeroClient($api, $contact)->prepareInvoiceEmailRecipients('contact-recipient-3', 'order@example.com');
+
+    expect($result)->toBe([
+        'recipient_count' => 2,
+        'changed' => true,
+        'order_email_added' => false,
+        'duplicate_count' => 0,
+    ]);
+});
+
+it('does not update xero contact recipients when the order email is already included once', function (): void {
+    $contact = new Contact;
+    $contact->setContactID('contact-recipient-4');
+    $contact->setName('Recipient Co');
+    $contact->setEmailAddress('accounts@example.com');
+    $contact->setContactPersons([
+        (new ContactPerson)
+            ->setFirstName('Order')
+            ->setLastName('Recipient')
+            ->setEmailAddress('order@example.com')
+            ->setIncludeInEmails(true),
+    ]);
+
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldNotReceive('updateContact');
+
+    $result = fakeXeroClient($api, $contact)->prepareInvoiceEmailRecipients('contact-recipient-4', 'order@example.com');
+
+    expect($result)->toBe([
+        'recipient_count' => 2,
+        'changed' => false,
+        'order_email_added' => false,
+        'duplicate_count' => 0,
+    ]);
 });
 
 it('creates credit note payments using the xero payments payload and idempotency key parameter', function (): void {

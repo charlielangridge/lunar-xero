@@ -45,6 +45,29 @@ class LunarOrderObserver
     protected function shouldResyncInvoiceReference(Model $order): bool
     {
         return $order->wasChanged('customer_reference')
-            || $order->wasChanged('reference');
+            || $order->wasChanged('reference')
+            || $this->purchaseOrderReferenceChanged($order);
+    }
+
+    protected function purchaseOrderReferenceChanged(Model $order): bool
+    {
+        if (! $order->wasChanged('meta')) {
+            return false;
+        }
+
+        return $this->purchaseOrderReferenceFrom($order->getOriginal('meta'))
+            !== $this->purchaseOrderReferenceFrom($order->meta ?? null);
+    }
+
+    protected function purchaseOrderReferenceFrom(mixed $meta): string
+    {
+        if (is_string($meta)) {
+            $decoded = json_decode($meta, true);
+            $meta = is_array($decoded) ? $decoded : [];
+        }
+
+        $reference = data_get($meta, 'purchase_order');
+
+        return is_scalar($reference) ? trim((string) $reference) : '';
     }
 }

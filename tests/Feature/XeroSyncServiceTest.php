@@ -123,7 +123,7 @@ it('syncs an authorised invoice and emails it when xero has not sent it to the c
     $mock = Mockery::mock(XeroClientInterface::class);
     $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
         return $payload->status === 'AUTHORISED'
-            && $payload->reference === 'PO-EMAIL-1'
+            && $payload->reference === 'ORDER-EMAIL-1 - PO-EMAIL-1'
             && $payload->contactId === 'contact-account-1';
     }))->andReturn(['id' => 'invoice-email-1', 'number' => 'INV-EMAIL-1', 'status' => 'AUTHORISED']);
     $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-1')->andReturn('https://in.xero.com/invoice/invoice-email-1');
@@ -132,6 +132,12 @@ it('syncs an authorised invoice and emails it when xero has not sent it to the c
         'number' => 'INV-EMAIL-1',
         'status' => 'AUTHORISED',
         'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('prepareInvoiceEmailRecipients')->once()->with('contact-account-1', 'account@example.com')->andReturn([
+        'recipient_count' => 1,
+        'changed' => false,
+        'order_email_added' => false,
+        'duplicate_count' => 0,
     ]);
     $mock->shouldReceive('emailInvoice')->once()->with('invoice-email-1');
     app()->instance(XeroClientInterface::class, $mock);
@@ -157,7 +163,7 @@ it('updates an existing invoice with latest lunar details before emailing it', f
     $mock = Mockery::mock(XeroClientInterface::class);
     $mock->shouldReceive('updateInvoice')->once()->with('invoice-email-existing', Mockery::on(function ($payload): bool {
         return $payload->status === 'AUTHORISED'
-            && $payload->reference === 'PO-EMAIL-1'
+            && $payload->reference === 'ORDER-EMAIL-1 - PO-EMAIL-1'
             && $payload->lines[0]->description === 'Account line';
     }))->andReturn(['id' => 'invoice-email-existing', 'number' => 'INV-EMAIL-EXISTING', 'status' => 'AUTHORISED']);
     $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-existing')->andReturn('https://in.xero.com/invoice/invoice-email-existing');
@@ -166,6 +172,12 @@ it('updates an existing invoice with latest lunar details before emailing it', f
         'number' => 'INV-EMAIL-EXISTING',
         'status' => 'AUTHORISED',
         'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('prepareInvoiceEmailRecipients')->once()->with('contact-account-1', 'account@example.com')->andReturn([
+        'recipient_count' => 1,
+        'changed' => false,
+        'order_email_added' => false,
+        'duplicate_count' => 0,
     ]);
     $mock->shouldReceive('emailInvoice')->once()->with('invoice-email-existing');
     app()->instance(XeroClientInterface::class, $mock);
@@ -201,6 +213,63 @@ it('does not email an invoice that xero has already sent to the contact', functi
         ->and($result['sent_to_contact'])->toBeTrue()
         ->and($latestLog?->status)->toBe(SyncStatus::Succeeded)
         ->and($latestLog?->response['email'])->toBe('skipped_already_sent');
+});
+
+it('prepares xero invoice email recipients with the billing order email before emailing', function (): void {
+    $order = createXeroInvoiceEmailSyncOrder('invoice-email-billing');
+
+    OrderAddress::query()->create([
+        'order_id' => $order->id,
+        'type' => 'billing',
+        'first_name' => 'Billing',
+        'last_name' => 'Recipient',
+        'contact_email' => 'billing@example.com',
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('updateInvoice')->once()->andReturn(['id' => 'invoice-email-billing', 'number' => 'INV-BILLING', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-billing')->andReturn('https://in.xero.com/invoice/invoice-email-billing');
+    $mock->shouldReceive('getInvoice')->once()->with('invoice-email-billing')->andReturn([
+        'id' => 'invoice-email-billing',
+        'number' => 'INV-BILLING',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('prepareInvoiceEmailRecipients')->once()->with('contact-account-1', 'billing@example.com')->andReturn([
+        'recipient_count' => 2,
+        'changed' => true,
+        'order_email_added' => true,
+        'duplicate_count' => 0,
+    ]);
+    $mock->shouldReceive('emailInvoice')->once()->with('invoice-email-billing');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $result = app(XeroSyncService::class)->syncAndEmailOrderInvoice($order->fresh(['customer', 'billingAddress', 'lines.product']));
+
+    expect($result['email'])->toBe('sent')
+        ->and($result['email_recipients']['order_email_added'])->toBeTrue();
+});
+
+it('does not email an invoice when xero recipient preparation fails', function (): void {
+    $order = createXeroInvoiceEmailSyncOrder('invoice-email-recipient-failure');
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('updateInvoice')->once()->andReturn(['id' => 'invoice-email-recipient-failure', 'number' => 'INV-FAIL', 'status' => 'AUTHORISED']);
+    $mock->shouldReceive('getOnlineInvoiceUrl')->once()->with('invoice-email-recipient-failure')->andReturn('https://in.xero.com/invoice/invoice-email-recipient-failure');
+    $mock->shouldReceive('getInvoice')->once()->with('invoice-email-recipient-failure')->andReturn([
+        'id' => 'invoice-email-recipient-failure',
+        'number' => 'INV-FAIL',
+        'status' => 'AUTHORISED',
+        'sent_to_contact' => false,
+    ]);
+    $mock->shouldReceive('prepareInvoiceEmailRecipients')->once()->with('contact-account-1', 'account@example.com')->andThrow(new XeroTransportException('Unable to prepare recipients.'));
+    $mock->shouldNotReceive('emailInvoice');
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    expect(fn () => app(XeroSyncService::class)->syncAndEmailOrderInvoice($order->fresh(['customer', 'lines.product'])))
+        ->toThrow(XeroTransportException::class, 'Unable to prepare recipients.');
 });
 
 it('does not include order line notes on xero invoice lines by default', function (): void {
@@ -1251,7 +1320,7 @@ it('creates and allocates a xero credit note for refund transactions', function 
         ->and($result['payment']['id'])->toBe('payment-refund-1');
 });
 
-it('uses the customer reference for the xero invoice ref and updates an existing invoice when it changes', function (): void {
+it('combines the order reference and customer reference for the xero invoice ref', function (): void {
     $customer = Customer::query()->create([
         'email' => 'customer@example.com',
         'xero_contact_id' => 'contact-7',
@@ -1288,7 +1357,7 @@ it('uses the customer reference for the xero invoice ref and updates an existing
     $mock = Mockery::mock(XeroClientInterface::class);
     $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'ACCOUNT-1']);
     $mock->shouldReceive('updateInvoice')->once()->with('invoice-7', Mockery::on(function ($payload): bool {
-        return $payload->reference === 'PO-1234'
+        return $payload->reference === 'ORDER-7 - PO-1234'
             && count($payload->lines) === 2
             && $payload->lines[0]->description === 'Account Product - Net 30'
             && $payload->lines[1]->description === 'Purchase Order: PO-1234'
@@ -1306,6 +1375,54 @@ it('uses the customer reference for the xero invoice ref and updates an existing
     expect($result['id'])->toBe('invoice-7')
         ->and($order->fresh()->xero_invoice_id)->toBe('invoice-7')
         ->and($order->fresh()->xero_online_invoice_url)->toBe('https://in.xero.com/invoice/7');
+});
+
+it('combines distinct order po and customer references for the xero invoice ref', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-7b',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Account Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'ACCOUNT-2',
+        'xero_account_code' => '201',
+    ]);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-7B',
+        'customer_reference' => 'CUSTOMER-REF-7B',
+        'meta' => ['purchase_order' => 'PO-7B'],
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'description' => 'Account line',
+        'quantity' => 1,
+        'unit_price' => 100,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'ACCOUNT-2']);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
+        return $payload->reference === 'ORDER-7B - PO-7B - CUSTOMER-REF-7B'
+            && count($payload->lines) === 2
+            && $payload->lines[1]->description === 'Purchase Order: PO-7B';
+    }))->andReturn(['id' => 'invoice-7b']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($order->fresh()->xero_invoice_id)->toBe('invoice-7b');
 });
 
 it('appends charity traceability lines from the default ganda order meta paths', function (): void {
@@ -1331,6 +1448,7 @@ it('appends charity traceability lines from the default ganda order meta paths',
         'reference' => 'ORDER-CHARITY-1',
         'customer_reference' => 'PO-CHARITY-1',
         'meta' => [
+            'purchase_order' => 'PO-CHARITY-1',
             'charity_vat_relief' => [
                 'charity_name' => 'Brighton Print Trust',
                 'charity_number' => '1234567',
@@ -1353,7 +1471,7 @@ it('appends charity traceability lines from the default ganda order meta paths',
     $mock = Mockery::mock(XeroClientInterface::class);
     $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'CHARITY-1']);
     $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
-        return $payload->reference === 'PO-CHARITY-1'
+        return $payload->reference === 'ORDER-CHARITY-1 - PO-CHARITY-1'
             && count($payload->lines) === 6
             && $payload->lines[0]->description === 'Charity Product - A4'
             && $payload->lines[0]->taxType === 'OUTPUT2'

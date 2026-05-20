@@ -143,6 +143,9 @@ class XeroSyncService
                 return $this->completeLog($log, SyncStatus::Succeeded, $response);
             }
 
+            $orderEmail = $this->resolveOrderContactData($order, $this->resolveOrderCustomer($order))['email'] ?? '';
+            $response['email_recipients'] = $this->client->prepareInvoiceEmailRecipients($payload->contactId, $orderEmail);
+
             $this->client->emailInvoice((string) $response['id']);
 
             $response['email'] = 'sent';
@@ -1000,7 +1003,7 @@ class XeroSyncService
 
     protected function buildPurchaseOrderLine(Model $order, Collection $lines): ?InvoiceLineData
     {
-        $purchaseOrderReference = $this->firstFilledString($order->customer_reference ?? null);
+        $purchaseOrderReference = $this->resolvePurchaseOrderReference($order);
 
         if ($purchaseOrderReference === '') {
             return null;
@@ -1244,6 +1247,38 @@ class XeroSyncService
         return '';
     }
 
+    /**
+     * @return array<int, string>
+     */
+    protected function distinctFilledStrings(mixed ...$values): array
+    {
+        $strings = [];
+        $seen = [];
+
+        foreach ($values as $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            $string = trim((string) $value);
+
+            if ($string === '') {
+                continue;
+            }
+
+            $key = mb_strtolower($string);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $strings[] = $string;
+        }
+
+        return $strings;
+    }
+
     protected function resolveCustomerEmail(Model $customer): string
     {
         $users = $customer->users ?? null;
@@ -1325,10 +1360,22 @@ class XeroSyncService
 
     protected function resolveInvoiceReference(Model $order): string
     {
-        return $this->firstFilledString(
-            $order->customer_reference ?? null,
+        $parts = $this->distinctFilledStrings(
             $order->reference ?? null,
-            (string) $order->getKey(),
+            $this->resolvePurchaseOrderReference($order),
+            $order->customer_reference ?? null,
+        );
+
+        return $parts !== []
+            ? implode(' - ', $parts)
+            : (string) $order->getKey();
+    }
+
+    protected function resolvePurchaseOrderReference(Model $order): string
+    {
+        return $this->firstFilledString(
+            data_get($order, 'meta.purchase_order'),
+            $order->customer_reference ?? null,
         );
     }
 
