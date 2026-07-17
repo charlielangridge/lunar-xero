@@ -121,6 +121,16 @@ it('creates contacts using the xero bulk contacts payload shape', function (): v
     ]);
 });
 
+it('rejects invalid xero item codes before creating xero items', function (): void {
+    $api = Mockery::mock(AccountingApi::class);
+    $api->shouldNotReceive('getItems');
+    $api->shouldNotReceive('createItems');
+
+    expect(fn () => fakeXeroClient($api)->findOrCreateItem([
+        'item_code' => 'THIS-XERO-ITEM-CODE-IS-MUCH-LONGER-THAN-THIRTY',
+    ]))->toThrow(XeroTransportException::class, 'Xero item code');
+});
+
 it('wraps xero sdk errors when fetching accounts', function (): void {
     $api = Mockery::mock(AccountingApi::class);
     $api->shouldReceive('getAccounts')

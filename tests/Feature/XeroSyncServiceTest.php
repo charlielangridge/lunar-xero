@@ -9,6 +9,7 @@ use CharlieLangridge\LunarXero\Exceptions\XeroTransportException;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Services\XeroSyncService;
+use CharlieLangridge\LunarXero\Support\XeroItemCode;
 use CharlieLangridge\LunarXero\Support\XeroUrlFactory;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Customer;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Order;
@@ -18,6 +19,7 @@ use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Payment;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\Product;
 use CharlieLangridge\LunarXero\Tests\Fixtures\Models\ProductVariant;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     Queue::fake();
@@ -866,7 +868,7 @@ it('backfills refund credit notes when an invoice is synced for an already refun
     ]);
 
     $mock = Mockery::mock(XeroClientInterface::class);
-    $mock->shouldReceive('findOrCreateItem')->twice()->andReturn(['item_code' => 'REFUND-BACKFILL-1']);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'REFUND-BACKFILL-1']);
     $mock->shouldReceive('createInvoice')->once()->andReturn(['id' => 'invoice-5b']);
     $mock->shouldReceive('findCreditNoteByReference')->once()->with('Refund re_backfill')->andReturn(null);
     $mock->shouldReceive('createCreditNote')->once()->with(Mockery::on(function ($payload): bool {
@@ -944,7 +946,7 @@ it('does not update an existing xero invoice once payments or refunds exist and 
     $mock->shouldNotReceive('updateInvoice');
     $mock->shouldReceive('getInvoicePayments')->once()->with('invoice-locked-1')->andReturn([]);
     $mock->shouldReceive('createPayment')->once()->andReturn(['id' => 'payment-locked-1']);
-    $mock->shouldReceive('findOrCreateItem')->twice()->andReturn(['item_code' => 'LOCKED-1']);
+    $mock->shouldReceive('findOrCreateItem')->once()->andReturn(['item_code' => 'LOCKED-1']);
     $mock->shouldReceive('findCreditNoteByReference')->once()->with('Refund re_locked')->andReturn(null);
     $mock->shouldReceive('createCreditNote')->once()->andReturn(['id' => 'credit-note-locked-1', 'number' => 'CN-LOCKED-1', 'status' => 'AUTHORISED']);
     $mock->shouldReceive('allocateCreditNote')->once()->andReturn(['id' => 'allocation-locked-1']);
@@ -1619,7 +1621,7 @@ it('ships with ganda charity meta defaults in config', function (): void {
         ->and(config('lunarpanel-xero.charity.declared_at_path'))->toBe('meta.charity_vat_relief.declared_at');
 });
 
-it('uses the variant sku as the invoice line xero item code even when a legacy item code is stored', function (): void {
+it('uses an explicit variant xero item code instead of the sku', function (): void {
     $customer = Customer::query()->create([
         'email' => 'customer@example.com',
         'xero_contact_id' => 'contact-8',
@@ -1653,13 +1655,9 @@ it('uses the variant sku as the invoice line xero item code even when a legacy i
     ]);
 
     $mock = Mockery::mock(XeroClientInterface::class);
-    $mock->shouldReceive('findOrCreateItem')->once()->with(Mockery::on(function (array $payload): bool {
-        return $payload['item_code'] === 'SKU-LEGACY-1'
-            && $payload['name'] === 'Legacy Code Product - Single'
-            && $payload['description'] === 'Legacy Code Product - Single';
-    }))->andReturn(['item_code' => 'SKU-LEGACY-1']);
+    $mock->shouldNotReceive('findOrCreateItem');
     $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload): bool {
-        return $payload->lines[0]->itemCode === 'SKU-LEGACY-1'
+        return $payload->lines[0]->itemCode === 'OLD-CODE'
             && $payload->lines[0]->description === 'Legacy Code Product - Single';
     }))->andReturn(['id' => 'invoice-8']);
     app()->instance(XeroClientInterface::class, $mock);
@@ -1667,6 +1665,169 @@ it('uses the variant sku as the invoice line xero item code even when a legacy i
 
     app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
 
-    expect($variant->fresh()->xero_item_code)->toBe('SKU-LEGACY-1')
+    expect($variant->fresh()->xero_item_code)->toBe('OLD-CODE')
         ->and($order->fresh()->xero_invoice_id)->toBe('invoice-8');
+});
+
+it('generates deterministic xero item codes for long variant skus before invoice sync', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'customer@example.com',
+        'xero_contact_id' => 'contact-9',
+    ]);
+
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Long SKU Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY',
+        'option_values' => 'Single',
+        'xero_account_code' => '201',
+    ]);
+    $expectedItemCode = XeroItemCode::generatedForSku((string) $variant->sku);
+
+    $order = Order::query()->create([
+        'customer_id' => $customer->id,
+        'reference' => 'ORDER-9',
+    ]);
+
+    OrderLine::query()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'description' => 'Long SKU line',
+        'quantity' => 1,
+        'unit_price' => 42,
+    ]);
+
+    $mock = Mockery::mock(XeroClientInterface::class);
+    $mock->shouldReceive('findOrCreateItem')->once()->with(Mockery::on(function (array $payload) use ($expectedItemCode): bool {
+        return $payload['item_code'] === $expectedItemCode;
+    }))->andReturn(['item_code' => $expectedItemCode]);
+    $mock->shouldReceive('createInvoice')->once()->with(Mockery::on(function ($payload) use ($expectedItemCode): bool {
+        return $payload->lines[0]->itemCode === $expectedItemCode;
+    }))->andReturn(['id' => 'invoice-9']);
+    app()->instance(XeroClientInterface::class, $mock);
+    app()->forgetInstance(XeroSyncService::class);
+
+    $variant->forceFill(['xero_item_code' => null])->saveQuietly();
+
+    app(XeroSyncService::class)->syncOrderInvoice($order->fresh(['customer', 'lines.variant.product']));
+
+    expect($variant->fresh()->xero_item_code)->toBe($expectedItemCode)
+        ->and(strlen($expectedItemCode))->toBeLessThanOrEqual(30);
+});
+
+it('does not generate variant xero item codes when the product has a shared item code', function (): void {
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'xero_item_code' => 'GROUP-PRINT',
+        'attribute_data' => ['name' => 'Shared Xero Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY',
+        'option_values' => 'Single',
+        'xero_account_code' => '201',
+    ]);
+
+    expect($variant->fresh()->xero_item_code)->toBeNull();
+});
+
+it('clears generated variant xero item codes when a shared product item code is saved', function (): void {
+    $sku = 'LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY';
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Shared Xero Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => $sku,
+        'option_values' => 'Single',
+        'xero_account_code' => '201',
+    ]);
+
+    expect($variant->fresh()->xero_item_code)->toBe(XeroItemCode::generatedForSku($sku));
+
+    $product->forceFill(['xero_item_code' => 'GROUP-PRINT'])->save();
+
+    expect($variant->fresh()->xero_item_code)->toBeNull();
+});
+
+it('refreshes generated xero item codes when long variant skus change', function (): void {
+    $originalSku = 'LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY';
+    $updatedSku = 'UPDATED-LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY';
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Long SKU Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => $originalSku,
+        'option_values' => 'Single',
+        'xero_account_code' => '201',
+    ]);
+
+    $variant->forceFill(['sku' => $updatedSku])->save();
+
+    expect($variant->fresh()->xero_item_code)
+        ->toBe(XeroItemCode::generatedForSku($updatedSku))
+        ->not->toBe(XeroItemCode::generatedForSku($originalSku));
+});
+
+it('rejects invalid explicit product and variant xero item codes on save', function (): void {
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Invalid Product'],
+    ]);
+
+    expect(fn () => ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => 'SHORT-SKU',
+        'xero_item_code' => 'THIS-XERO-ITEM-CODE-IS-MUCH-LONGER-THAN-THIRTY',
+    ]))->toThrow(ValidationException::class);
+
+    expect(fn () => Product::query()->create([
+        'xero_account_code' => '200',
+        'xero_item_code' => 'THIS-XERO-ITEM-CODE-IS-MUCH-LONGER-THAN-THIRTY',
+        'attribute_data' => ['name' => 'Invalid Product'],
+    ]))->toThrow(ValidationException::class);
+});
+
+it('backfills generated item codes for existing long sku variants', function (): void {
+    $sku = 'LONG-SKU-FOR-XERO-ITEM-CODE-OVER-THIRTY';
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Long SKU Product'],
+    ]);
+
+    $variant = ProductVariant::query()->create([
+        'product_id' => $product->id,
+        'sku' => $sku,
+        'option_values' => 'Single',
+    ]);
+    $variant->forceFill(['xero_item_code' => null])->saveQuietly();
+
+    $this->artisan('xero:backfill-item-codes')
+        ->assertExitCode(0);
+
+    expect($variant->fresh()->xero_item_code)->toBe(XeroItemCode::generatedForSku($sku));
+});
+
+it('fails the backfill command when a legacy product item code is invalid', function (): void {
+    $product = Product::query()->create([
+        'xero_account_code' => '200',
+        'attribute_data' => ['name' => 'Invalid Product'],
+    ]);
+    $product->forceFill([
+        'xero_item_code' => 'THIS-XERO-ITEM-CODE-IS-MUCH-LONGER-THAN-THIRTY',
+    ])->saveQuietly();
+
+    $this->artisan('xero:backfill-item-codes')
+        ->assertExitCode(1);
 });

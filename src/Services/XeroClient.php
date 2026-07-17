@@ -16,6 +16,7 @@ use CharlieLangridge\LunarXero\Exceptions\XeroAuthenticationException;
 use CharlieLangridge\LunarXero\Exceptions\XeroConfigurationException;
 use CharlieLangridge\LunarXero\Exceptions\XeroTransportException;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
+use CharlieLangridge\LunarXero\Support\XeroItemCode;
 use GuzzleHttp\Client as GuzzleClient;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -299,7 +300,11 @@ class XeroClient implements XeroClientInterface
     {
         $this->guardWriteOperation('create items');
 
-        $code = (string) $payload['item_code'];
+        try {
+            $code = XeroItemCode::explicit((string) ($payload['item_code'] ?? ''));
+        } catch (\InvalidArgumentException $exception) {
+            throw new XeroTransportException($exception->getMessage(), 0, $exception);
+        }
         $response = $this->accountingApi()->getItems($this->tenantId());
         $existing = Collection::make($this->extractNestedList($response, 'getItems'))
             ->first(fn (Item $item): bool => (string) $item->getCode() === $code);

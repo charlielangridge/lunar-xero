@@ -6,6 +6,7 @@ namespace CharlieLangridge\LunarXero\Filament\Resources\ProductVariantResource\P
 
 use BackedEnum;
 use CharlieLangridge\LunarXero\Support\XeroAccountOptions;
+use CharlieLangridge\LunarXero\Support\XeroItemCode;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -82,7 +83,7 @@ class ManageVariantXero extends BaseEditRecord
                         ->getOptionLabelUsing(fn (?string $value): ?string => $accounts->invoiceLabel($value)),
                     TextInput::make('xero_item_code')
                         ->label('Xero item code')
-                        ->maxLength(255),
+                        ->maxLength(XeroItemCode::MaxLength),
                 ])
                 ->columns([
                     'sm' => 1,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CharlieLangridge\LunarXero;
 
+use CharlieLangridge\LunarXero\Commands\BackfillXeroItemCodes;
 use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use CharlieLangridge\LunarXero\Filament\LunarXeroPlugin;
 use CharlieLangridge\LunarXero\Filament\Pages\ManageXeroSettings;
@@ -17,6 +18,8 @@ use CharlieLangridge\LunarXero\Lunar\Extensions\ProductResourceExtension;
 use CharlieLangridge\LunarXero\Lunar\Extensions\ProductVariantResourceExtension;
 use CharlieLangridge\LunarXero\Observers\LunarCustomerObserver;
 use CharlieLangridge\LunarXero\Observers\LunarOrderObserver;
+use CharlieLangridge\LunarXero\Observers\LunarProductObserver;
+use CharlieLangridge\LunarXero\Observers\LunarProductVariantObserver;
 use CharlieLangridge\LunarXero\Observers\LunarTransactionObserver;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Services\XeroClient;
@@ -42,7 +45,8 @@ class LunarXeroServiceProvider extends PackageServiceProvider
             ->name('lunarpanel-xero')
             ->hasConfigFile('lunarpanel-xero')
             ->hasViews()
-            ->hasRoute('web');
+            ->hasRoute('web')
+            ->hasCommand(BackfillXeroItemCodes::class);
     }
 
     public function registeringPackage(): void
@@ -131,10 +135,14 @@ class LunarXeroServiceProvider extends PackageServiceProvider
     {
         $customerModel = app(LunarModelResolver::class)->customerModel();
         $orderModel = app(LunarModelResolver::class)->orderModel();
+        $productModel = app(LunarModelResolver::class)->productModel();
+        $variantModel = app(LunarModelResolver::class)->variantModel();
         $transactionModel = app(LunarModelResolver::class)->transactionModel();
 
         $customerModel::observe(app(LunarCustomerObserver::class));
         $orderModel::observe(app(LunarOrderObserver::class));
+        $productModel::observe(app(LunarProductObserver::class));
+        $variantModel::observe(app(LunarProductVariantObserver::class));
         $transactionModel::observe(app(LunarTransactionObserver::class));
     }
 }

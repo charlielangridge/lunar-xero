@@ -20,10 +20,10 @@ use CharlieLangridge\LunarXero\Models\XeroPaymentTypeMapping;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Support\LunarModelResolver;
+use CharlieLangridge\LunarXero\Support\XeroItemCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 use Lunar\Models\Transaction;
 use Throwable;
 
@@ -415,19 +415,34 @@ class XeroSyncService
 
     protected function resolveItemCode(mixed $line, ?Model $variant, ?Model $product): ?string
     {
-        if ($variant && filled($variant->sku)) {
-            $canonicalCode = $this->normalizeItemCode((string) $variant->sku);
-            $this->ensureCatalogItemExists($variant, $canonicalCode, $line, $variant, $product);
-
-            return $canonicalCode;
-        }
-
         if ($variant && filled($variant->xero_item_code)) {
-            return $this->normalizeItemCode((string) $variant->xero_item_code);
+            $itemCode = XeroItemCode::explicit((string) $variant->xero_item_code);
+
+            if (XeroItemCode::isGeneratedForSku($itemCode, $variant->sku ?? null)) {
+                if ($product && filled($product->xero_item_code)) {
+                    $variant->forceFill(['xero_item_code' => null])->save();
+
+                    return XeroItemCode::explicit((string) $product->xero_item_code);
+                }
+
+                return $this->ensureCatalogItemExists($variant, $itemCode, $line, $variant, $product);
+            }
+
+            return $itemCode;
         }
 
         if ($product && filled($product->xero_item_code)) {
-            return $this->normalizeItemCode((string) $product->xero_item_code);
+            return XeroItemCode::explicit((string) $product->xero_item_code);
+        }
+
+        if ($variant && filled($variant->sku)) {
+            $itemCode = XeroItemCode::fallbackForSku((string) $variant->sku);
+
+            if ($itemCode === null) {
+                return null;
+            }
+
+            return $this->ensureCatalogItemExists($variant, $itemCode, $line, $variant, $product);
         }
 
         $source = $variant ?? $product;
@@ -437,14 +452,13 @@ class XeroSyncService
         }
 
         $proposedCode = (string) ($variant?->sku ?? $product?->attribute_data['name'] ?? 'item-'.$source->getKey());
+        $itemCode = XeroItemCode::fallbackForSku($proposedCode);
 
-        return $this->ensureCatalogItemExists(
-            $source,
-            $this->normalizeItemCode($proposedCode),
-            $line,
-            $variant,
-            $product,
-        );
+        if ($itemCode === null || XeroItemCode::shouldGenerateForSku($proposedCode)) {
+            return null;
+        }
+
+        return $this->ensureCatalogItemExists($source, $itemCode, $line, $variant, $product);
     }
 
     protected function resolveAccountCode(?Model $variant, ?Model $product): string
@@ -947,7 +961,7 @@ class XeroSyncService
 
     protected function normalizeItemCode(string $value): string
     {
-        return Str::of($value)->upper()->replace(' ', '-')->value();
+        return XeroItemCode::normalize($value);
     }
 
     protected function ensureCatalogItemExists(
