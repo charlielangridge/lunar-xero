@@ -2,6 +2,12 @@
 
 All notable changes to `charlielangridge/lunar-xero` will be documented in this file.
 
+## v0.5.3 - 2026-07-18
+
+- Guarded Livewire component registration until the Livewire container binding is available.
+- Replaced navigation icon view rendering with a shared support class to keep package analysis portable across dependency sets.
+- Updated CI to test the package against its supported PHP version.
+
 ## v0.5.2 - 2026-07-17
 
 - Added Xero-safe item code generation for long Lunar variant SKUs.

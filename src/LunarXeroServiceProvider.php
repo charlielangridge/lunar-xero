@@ -83,7 +83,7 @@ class LunarXeroServiceProvider extends PackageServiceProvider
 
     protected function registerFilamentIntegration(): void
     {
-        if (class_exists(Livewire::class)) {
+        if (class_exists(Livewire::class) && $this->app->bound('livewire')) {
             Livewire::component(
                 'charlie-langridge.lunar-xero.filament.pages.manage-xero-settings',
                 ManageXeroSettings::class,

@@ -9,6 +9,7 @@ use CharlieLangridge\LunarXero\Contracts\XeroClientInterface;
 use CharlieLangridge\LunarXero\Enums\InvoiceStatus;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Support\XeroAccountOptions;
+use CharlieLangridge\LunarXero\Support\XeroNavigationIcon;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\HtmlString;
@@ -185,6 +186,6 @@ class ManageXeroSettings extends Page
 
     public static function getNavigationIcon(): string|BackedEnum|HtmlString|null
     {
-        return new HtmlString(view('lunarpanel-xero::filament.partials.xero-nav-icon')->render());
+        return XeroNavigationIcon::make();
     }
 }

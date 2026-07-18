@@ -31,7 +31,7 @@ class BackfillXeroItemCodes extends Command
             ->cursor()
             ->each(function (Model $product) use (&$invalid): void {
                 try {
-                    XeroItemCode::explicit((string) $product->xero_item_code);
+                    XeroItemCode::explicit((string) $product->getAttribute('xero_item_code'));
                 } catch (InvalidArgumentException $exception) {
                     $invalid++;
                     $this->error("Product [{$product->getKey()}] has an invalid Xero item code: {$exception->getMessage()}");
@@ -43,28 +43,31 @@ class BackfillXeroItemCodes extends Command
             ->chunkById($chunkSize, function ($variants) use ($dryRun, &$created, &$cleared, &$invalid): void {
                 foreach ($variants as $variant) {
                     $product = $variant->product ?? null;
+                    $productItemCode = $product instanceof Model ? $product->getAttribute('xero_item_code') : null;
+                    $variantItemCode = $variant->getAttribute('xero_item_code');
+                    $variantSku = $variant->getAttribute('sku');
 
-                    if ($product && filled($product->xero_item_code)) {
-                        if (filled($variant->xero_item_code) && XeroItemCode::isGeneratedForSku($variant->xero_item_code, $variant->sku ?? null)) {
+                    if ($product instanceof Model && filled($productItemCode)) {
+                        if (filled($variantItemCode) && XeroItemCode::isGeneratedForSku((string) $variantItemCode, $variantSku === null ? null : (string) $variantSku)) {
                             $cleared++;
 
                             if (! $dryRun) {
                                 $variant->forceFill(['xero_item_code' => null])->saveQuietly();
                             }
-                        } elseif (filled($variant->xero_item_code)) {
+                        } elseif (filled($variantItemCode)) {
                             $invalid += $this->validateVariantCode($variant);
                         }
 
                         continue;
                     }
 
-                    if (filled($variant->xero_item_code)) {
+                    if (filled($variantItemCode)) {
                         $invalid += $this->validateVariantCode($variant);
 
                         continue;
                     }
 
-                    if (! filled($variant->sku) || ! XeroItemCode::shouldGenerateForSku((string) $variant->sku)) {
+                    if (! filled($variantSku) || ! XeroItemCode::shouldGenerateForSku((string) $variantSku)) {
                         continue;
                     }
 
@@ -72,7 +75,7 @@ class BackfillXeroItemCodes extends Command
 
                     if (! $dryRun) {
                         $variant->forceFill([
-                            'xero_item_code' => XeroItemCode::generatedForSku((string) $variant->sku),
+                            'xero_item_code' => XeroItemCode::generatedForSku((string) $variantSku),
                         ])->saveQuietly();
                     }
                 }
@@ -93,7 +96,7 @@ class BackfillXeroItemCodes extends Command
     private function validateVariantCode(Model $variant): int
     {
         try {
-            XeroItemCode::explicit((string) $variant->xero_item_code);
+            XeroItemCode::explicit((string) $variant->getAttribute('xero_item_code'));
 
             return 0;
         } catch (InvalidArgumentException $exception) {

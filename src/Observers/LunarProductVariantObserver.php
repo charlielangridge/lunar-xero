@@ -14,31 +14,34 @@ class LunarProductVariantObserver
     public function saving(Model $variant): void
     {
         $product = $this->productFor($variant);
+        $variantItemCode = $variant->getAttribute('xero_item_code');
+        $variantSku = $variant->getAttribute('sku');
+        $productItemCode = $product?->getAttribute('xero_item_code');
 
-        if ($product && filled($product->xero_item_code)) {
-            if (filled($variant->xero_item_code) && XeroItemCode::isGeneratedForSku($variant->xero_item_code, $variant->sku ?? null)) {
-                $variant->xero_item_code = null;
+        if ($product && filled($productItemCode)) {
+            if (filled($variantItemCode) && XeroItemCode::isGeneratedForSku((string) $variantItemCode, $variantSku === null ? null : (string) $variantSku)) {
+                $variant->setAttribute('xero_item_code', null);
             }
 
             return;
         }
 
-        if (filled($variant->xero_item_code)) {
-            $itemCode = $this->explicitCode((string) $variant->xero_item_code);
+        if (filled($variantItemCode)) {
+            $itemCode = $this->explicitCode((string) $variantItemCode);
 
             if ($variant->isDirty('sku') && XeroItemCode::isGeneratedForSku($itemCode, $variant->getOriginal('sku'))) {
-                $variant->xero_item_code = XeroItemCode::fallbackForSku((string) $variant->sku);
+                $variant->setAttribute('xero_item_code', XeroItemCode::fallbackForSku((string) $variantSku));
 
                 return;
             }
 
-            $variant->xero_item_code = $itemCode;
+            $variant->setAttribute('xero_item_code', $itemCode);
 
             return;
         }
 
-        if (filled($variant->sku) && XeroItemCode::shouldGenerateForSku((string) $variant->sku)) {
-            $variant->xero_item_code = XeroItemCode::generatedForSku((string) $variant->sku);
+        if (filled($variantSku) && XeroItemCode::shouldGenerateForSku((string) $variantSku)) {
+            $variant->setAttribute('xero_item_code', XeroItemCode::generatedForSku((string) $variantSku));
         }
     }
 

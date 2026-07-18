@@ -415,14 +415,18 @@ class XeroSyncService
 
     protected function resolveItemCode(mixed $line, ?Model $variant, ?Model $product): ?string
     {
-        if ($variant && filled($variant->xero_item_code)) {
-            $itemCode = XeroItemCode::explicit((string) $variant->xero_item_code);
+        $variantItemCode = $variant?->getAttribute('xero_item_code');
+        $variantSku = $variant?->getAttribute('sku');
+        $productItemCode = $product?->getAttribute('xero_item_code');
 
-            if (XeroItemCode::isGeneratedForSku($itemCode, $variant->sku ?? null)) {
-                if ($product && filled($product->xero_item_code)) {
+        if ($variant && filled($variantItemCode)) {
+            $itemCode = XeroItemCode::explicit((string) $variantItemCode);
+
+            if (XeroItemCode::isGeneratedForSku($itemCode, $variantSku === null ? null : (string) $variantSku)) {
+                if ($product && filled($productItemCode)) {
                     $variant->forceFill(['xero_item_code' => null])->save();
 
-                    return XeroItemCode::explicit((string) $product->xero_item_code);
+                    return XeroItemCode::explicit((string) $productItemCode);
                 }
 
                 return $this->ensureCatalogItemExists($variant, $itemCode, $line, $variant, $product);
@@ -431,12 +435,12 @@ class XeroSyncService
             return $itemCode;
         }
 
-        if ($product && filled($product->xero_item_code)) {
-            return XeroItemCode::explicit((string) $product->xero_item_code);
+        if ($product && filled($productItemCode)) {
+            return XeroItemCode::explicit((string) $productItemCode);
         }
 
-        if ($variant && filled($variant->sku)) {
-            $itemCode = XeroItemCode::fallbackForSku((string) $variant->sku);
+        if ($variant && filled($variantSku)) {
+            $itemCode = XeroItemCode::fallbackForSku((string) $variantSku);
 
             if ($itemCode === null) {
                 return null;

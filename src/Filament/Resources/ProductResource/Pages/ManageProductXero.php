@@ -7,6 +7,7 @@ namespace CharlieLangridge\LunarXero\Filament\Resources\ProductResource\Pages;
 use BackedEnum;
 use CharlieLangridge\LunarXero\Support\XeroAccountOptions;
 use CharlieLangridge\LunarXero\Support\XeroItemCode;
+use CharlieLangridge\LunarXero\Support\XeroNavigationIcon;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -33,7 +34,7 @@ class ManageProductXero extends BaseEditRecord
 
     public static function getNavigationIcon(): string|BackedEnum|HtmlString|null
     {
-        return new HtmlString(view('lunarpanel-xero::filament.partials.xero-nav-icon')->render());
+        return XeroNavigationIcon::make();
     }
 
     public function getBreadcrumb(): string

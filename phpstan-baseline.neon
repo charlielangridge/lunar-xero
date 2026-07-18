@@ -414,7 +414,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sku\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Services/XeroSyncService.php
 
 		-
@@ -439,12 +439,6 @@ parameters:
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_invoice_id\.$#'
 			identifier: property.notFound
 			count: 5
-			path: src/Services/XeroSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$xero_item_code\.$#'
-			identifier: property.notFound
-			count: 2
 			path: src/Services/XeroSyncService.php
 
 		-

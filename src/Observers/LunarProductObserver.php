@@ -13,16 +13,18 @@ class LunarProductObserver
 {
     public function saving(Model $product): void
     {
-        if (! filled($product->xero_item_code)) {
+        $itemCode = $product->getAttribute('xero_item_code');
+
+        if (! filled($itemCode)) {
             return;
         }
 
-        $product->xero_item_code = $this->explicitCode((string) $product->xero_item_code);
+        $product->setAttribute('xero_item_code', $this->explicitCode((string) $itemCode));
     }
 
     public function saved(Model $product): void
     {
-        if (! filled($product->xero_item_code) || ! method_exists($product, 'variants')) {
+        if (! filled($product->getAttribute('xero_item_code')) || ! method_exists($product, 'variants')) {
             return;
         }
 
@@ -30,7 +32,10 @@ class LunarProductObserver
             ->whereNotNull('xero_item_code')
             ->get()
             ->each(function (Model $variant): void {
-                if (! XeroItemCode::isGeneratedForSku($variant->xero_item_code, $variant->sku ?? null)) {
+                $variantItemCode = $variant->getAttribute('xero_item_code');
+                $variantSku = $variant->getAttribute('sku');
+
+                if (! XeroItemCode::isGeneratedForSku((string) $variantItemCode, $variantSku === null ? null : (string) $variantSku)) {
                     return;
                 }
 
