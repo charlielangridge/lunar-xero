@@ -2,6 +2,10 @@
 
 All notable changes to `charlielangridge/lunar-xero` will be documented in this file.
 
+## v0.6.1 - 2026-07-18
+
+- Re-released the Xero item-code generation and CI portability fixes on the current public package version line above v0.6.0.
+
 ## v0.5.3 - 2026-07-18
 
 - Guarded Livewire component registration until the Livewire container binding is available.
