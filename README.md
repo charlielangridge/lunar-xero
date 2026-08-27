@@ -22,9 +22,9 @@ The package is built around Lunar's existing models and events, so it fits into 
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11, 12 or 13
+- Laravel 12 or 13
 - Filament 4
-- Lunar 1.x
+- Lunar 1.5+
 - A running queue worker
 - A Xero app with OAuth enabled
 

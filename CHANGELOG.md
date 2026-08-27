@@ -2,6 +2,12 @@
 
 All notable changes to `charlielangridge/lunar-xero` will be documented in this file.
 
+## v0.7.0 - 2026-08-27
+
+- Added support for Lunar 1.5 and Laravel 13.
+- Upgraded the Xero PHP SDK to 16.1, including Firebase PHP-JWT 7 support.
+- Dropped support for Laravel 11 and Lunar versions before 1.5.
+
 ## v0.6.1 - 2026-07-18
 
 - Re-released the Xero item-code generation and CI portability fixes on the current public package version line above v0.6.0.

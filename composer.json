@@ -21,13 +21,13 @@
         "php": "^8.4",
         "filament/filament": "^4.0",
         "guzzlehttp/guzzle": "^7.9",
-        "illuminate/database": "^11.0||^12.0||^13.0",
-        "illuminate/http": "^11.0||^12.0||^13.0",
-        "illuminate/routing": "^11.0||^12.0||^13.0",
-        "illuminate/support": "^11.0||^12.0||^13.0",
-        "lunarphp/lunar": "^1.0",
+        "illuminate/database": "^12.0||^13.0",
+        "illuminate/http": "^12.0||^13.0",
+        "illuminate/routing": "^12.0||^13.0",
+        "illuminate/support": "^12.0||^13.0",
+        "lunarphp/lunar": "^1.5",
         "spatie/laravel-package-tools": "^1.16",
-        "xeroapi/xero-php-oauth2": "^7.4"
+        "xeroapi/xero-php-oauth2": "^16.1"
     },
     "require-dev": {
         "laravel/pint": "^1.14",
