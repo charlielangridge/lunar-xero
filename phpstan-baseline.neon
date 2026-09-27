@@ -262,12 +262,6 @@ parameters:
 			path: src/Services/XeroClient.php
 
 		-
-			message: '#^Method CharlieLangridge\\LunarXero\\Services\\XeroClient\:\:searchContacts\(\) should return Illuminate\\Support\\Collection\<int, array\{id\: string, name\: string, email\: string\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: string, name\: string, email\: string\|null\}\>\.$#'
-			identifier: return.type
-			count: 1
-			path: src/Services/XeroClient.php
-
-		-
 			message: '#^Parameter \#1 \$date of method XeroAPI\\XeroPHP\\Models\\Accounting\\Invoice\:\:setDate\(\) expects string\|null, DateTime given\.$#'
 			identifier: argument.type
 			count: 1

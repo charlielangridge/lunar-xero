@@ -8,6 +8,8 @@ use CharlieLangridge\LunarXero\Enums\SyncOperation;
 use CharlieLangridge\LunarXero\Enums\SyncStatus;
 use CharlieLangridge\LunarXero\Jobs\SyncPaymentToXero;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
+use CharlieLangridge\LunarXero\Support\OrderInvoiceSyncEligibility;
+use Illuminate\Database\Eloquent\Model;
 
 class DispatchPaymentSync
 {
@@ -16,6 +18,12 @@ class DispatchPaymentSync
         $payment = $event->payment ?? $event->transaction ?? $event->model ?? null;
 
         if (! $payment || ! method_exists($payment, 'getKey')) {
+            return;
+        }
+
+        $order = $payment->order ?? null;
+
+        if ($order instanceof Model && ! app(OrderInvoiceSyncEligibility::class)->allows($order)) {
             return;
         }
 

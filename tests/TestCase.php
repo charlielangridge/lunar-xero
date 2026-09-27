@@ -85,6 +85,7 @@ abstract class TestCase extends Orchestra
             $table->string('customer_reference')->nullable();
             $table->json('meta')->nullable();
             $table->string('xero_invoice_id')->nullable();
+            $table->timestamp('placed_at')->nullable();
             $table->timestamps();
         });
 

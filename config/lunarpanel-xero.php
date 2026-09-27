@@ -16,6 +16,10 @@ return [
         'account_cache_ttl' => 600,
     ],
 
+    'orders' => [
+        'require_placed_for_sync' => false,
+    ],
+
     'oauth' => [
         'client_id' => env('XERO_CLIENT_ID'),
         'client_secret' => env('XERO_CLIENT_SECRET'),

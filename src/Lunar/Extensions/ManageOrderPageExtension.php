@@ -8,6 +8,7 @@ use CharlieLangridge\LunarXero\Enums\SyncOperation;
 use CharlieLangridge\LunarXero\Enums\SyncStatus;
 use CharlieLangridge\LunarXero\Jobs\SyncOrderInvoiceToXero;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
+use CharlieLangridge\LunarXero\Support\OrderInvoiceSyncEligibility;
 use CharlieLangridge\LunarXero\Support\XeroUrlFactory;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\TextEntry;
@@ -37,6 +38,7 @@ class ManageOrderPageExtension extends ViewPageExtension
                 Action::make('syncXeroInvoice')
                     ->label('Sync invoice to Xero')
                     ->color('gray')
+                    ->visible(fn (Model $record): bool => app(OrderInvoiceSyncEligibility::class)->allows($record))
                     ->requiresConfirmation()
                     ->action(function (Model $record): void {
                         try {

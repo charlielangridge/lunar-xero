@@ -796,7 +796,8 @@ it('prefers billing details when creating a guest-like xero contact from an orde
         ->and($order->fresh()->xero_invoice_id)->toBe('invoice-guest-linked');
 });
 
-it('backfills captured payments when an invoice is synced for an already paid order', function (): void {
+it('backfills captured payments when an invoice is synced for an already paid order', function (bool $placedOnly): void {
+    config()->set('lunarpanel-xero.orders.require_placed_for_sync', $placedOnly);
     $customer = Customer::query()->create(['email' => 'customer@example.com', 'xero_contact_id' => 'contact-5']);
     $product = Product::query()->create(['xero_account_code' => '200', 'attribute_data' => ['name' => 'Paid Product']]);
     $variant = ProductVariant::query()->create(['product_id' => $product->id, 'sku' => 'PAID-1', 'xero_account_code' => '201']);
@@ -818,6 +819,10 @@ it('backfills captured payments when an invoice is synced for an already paid or
         'reference' => 'PAY-ORDER-5',
         'captured_at' => now(),
     ]);
+
+    if ($placedOnly) {
+        $order->update(['placed_at' => now()]);
+    }
 
     app(XeroSettingsRepository::class)->syncPaymentMappings([
         ['payment_type' => 'card', 'account_code' => '090', 'account_name' => 'Stripe Clearing'],
@@ -841,7 +846,7 @@ it('backfills captured payments when an invoice is synced for an already paid or
     expect($result['payments'][0]['status'])->toBe('synced')
         ->and($result['payments'][0]['result']['id'])->toBe('payment-5')
         ->and($order->fresh()->xero_invoice_id)->toBe('invoice-5');
-});
+})->with([false, true]);
 
 it('backfills refund credit notes when an invoice is synced for an already refunded order', function (): void {
     $customer = Customer::query()->create(['email' => 'customer@example.com', 'xero_contact_id' => 'contact-5b']);

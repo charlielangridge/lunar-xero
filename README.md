@@ -64,6 +64,7 @@ The main settings are:
 
 - `defaults.invoice_status`: default invoice status sent to Xero, either `DRAFT` or `AUTHORISED`
 - `defaults.sync_queue`: queue name used for contact, invoice, and payment jobs
+- `orders.require_placed_for_sync`: opt into syncing invoices only after an order is placed; defaults to `false`
 - `oauth.read_only`: blocks write calls to Xero when enabled
 - `events.order_created`: event class used to dispatch invoice syncs
 - `events.payment_completed`: event class used to dispatch payment syncs
@@ -130,6 +131,16 @@ Customer sync is observer-driven.
 ### Invoices
 
 Invoice sync runs from the configured order-created event and can also be queued manually from the order page.
+
+For approval-based or pay-later flows that create Orders before they are financially placed, change this option to `true`:
+
+```php
+'orders' => [
+    'require_placed_for_sync' => false,
+],
+```
+
+The default is `false`, including when an application's published config lacks this key, so existing automatic sync timing is preserved. When enabled, unplaced Orders do not queue invoice work. Changing `placed_at` from `null` to a timestamp queues the invoice sync, and Orders created already placed sync immediately. The manual action and direct invoice or invoice-and-email calls also respect the placement rule. Existing successful transactions are backfilled after the placed Order's invoice syncs.
 
 During invoice sync the package:
 

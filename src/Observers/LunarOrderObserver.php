@@ -8,12 +8,26 @@ use CharlieLangridge\LunarXero\Enums\SyncOperation;
 use CharlieLangridge\LunarXero\Enums\SyncStatus;
 use CharlieLangridge\LunarXero\Jobs\SyncOrderInvoiceToXero;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
+use CharlieLangridge\LunarXero\Support\OrderInvoiceSyncEligibility;
 use Illuminate\Database\Eloquent\Model;
 
 class LunarOrderObserver
 {
     public function created(Model $order): void
     {
+        if (! app(OrderInvoiceSyncEligibility::class)->allows($order)) {
+            return;
+        }
+
+        if (XeroSyncLog::query()->where('operation', SyncOperation::Invoice->value)
+            ->where('resource_type', $order::class)
+            ->where('resource_id', $order->getKey())
+            ->where('payload->source', 'event_listener')
+            ->where('status', SyncStatus::Pending->value)
+            ->exists()) {
+            return;
+        }
+
         XeroSyncLog::query()->create([
             'operation' => SyncOperation::Invoice->value,
             'status' => SyncStatus::Pending->value,
@@ -30,6 +44,19 @@ class LunarOrderObserver
 
     public function updated(Model $order): void
     {
+        $eligibility = app(OrderInvoiceSyncEligibility::class);
+
+        if (! $eligibility->allows($order)) {
+            return;
+        }
+
+        if ($eligibility->becamePlaced($order)) {
+            SyncOrderInvoiceToXero::dispatch($order->getKey())
+                ->onQueue(config('lunarpanel-xero.defaults.sync_queue', 'default'));
+
+            return;
+        }
+
         if (! $this->shouldResyncInvoiceReference($order)) {
             return;
         }

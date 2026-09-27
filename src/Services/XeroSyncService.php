@@ -20,20 +20,27 @@ use CharlieLangridge\LunarXero\Models\XeroPaymentTypeMapping;
 use CharlieLangridge\LunarXero\Models\XeroSyncLog;
 use CharlieLangridge\LunarXero\Repositories\XeroSettingsRepository;
 use CharlieLangridge\LunarXero\Support\LunarModelResolver;
+use CharlieLangridge\LunarXero\Support\OrderInvoiceSyncEligibility;
 use CharlieLangridge\LunarXero\Support\XeroItemCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Lunar\Models\Transaction;
 use Throwable;
 
 class XeroSyncService
 {
+    protected OrderInvoiceSyncEligibility $orderEligibility;
+
     public function __construct(
         protected XeroClientInterface $client,
         protected XeroSettingsRepository $settingsRepository,
         protected LunarModelResolver $modelResolver,
-    ) {}
+        ?OrderInvoiceSyncEligibility $orderEligibility = null,
+    ) {
+        $this->orderEligibility = $orderEligibility ?? new OrderInvoiceSyncEligibility;
+    }
 
     public function syncOrderInvoiceById(int|string $orderId): array
     {
@@ -74,6 +81,29 @@ class XeroSyncService
 
     public function syncOrderInvoice(Model $order): array
     {
+        $outcome = DB::connection($order->getConnectionName())->transaction(function () use ($order): array {
+            $lockedOrder = $order->newQuery()->lockForUpdate()->findOrFail($order->getKey());
+
+            try {
+                return ['result' => $this->syncLockedOrderInvoice($lockedOrder)];
+            } catch (Throwable $throwable) {
+                return ['error' => $throwable];
+            }
+        });
+
+        if (isset($outcome['error'])) {
+            throw $outcome['error'];
+        }
+
+        return $outcome['result'];
+    }
+
+    protected function syncLockedOrderInvoice(Model $order): array
+    {
+        if (! $this->orderEligibility->allows($order)) {
+            return $this->skipIneligibleOrder($order, SyncOperation::Invoice);
+        }
+
         $log = $this->startLog(
             operation: SyncOperation::Invoice,
             resource: $order,
@@ -117,6 +147,29 @@ class XeroSyncService
 
     public function syncAndEmailOrderInvoice(Model $order): array
     {
+        $outcome = DB::connection($order->getConnectionName())->transaction(function () use ($order): array {
+            $lockedOrder = $order->newQuery()->lockForUpdate()->findOrFail($order->getKey());
+
+            try {
+                return ['result' => $this->syncAndEmailLockedOrderInvoice($lockedOrder)];
+            } catch (Throwable $throwable) {
+                return ['error' => $throwable];
+            }
+        });
+
+        if (isset($outcome['error'])) {
+            throw $outcome['error'];
+        }
+
+        return $outcome['result'];
+    }
+
+    protected function syncAndEmailLockedOrderInvoice(Model $order): array
+    {
+        if (! $this->orderEligibility->allows($order)) {
+            return $this->skipIneligibleOrder($order, SyncOperation::InvoiceEmail);
+        }
+
         $log = $this->startLog(
             operation: SyncOperation::InvoiceEmail,
             resource: $order,
@@ -181,6 +234,10 @@ class XeroSyncService
         try {
             $order = $this->resolvePaymentOrder($payment);
 
+            if (! $this->orderEligibility->allows($order)) {
+                return $this->completeLog($log, SyncStatus::Skipped, ['reason' => 'order_not_placed']);
+            }
+
             if (! filled($order->xero_invoice_id)) {
                 throw new XeroSyncException('The Lunar order does not have a synced Xero invoice ID.');
             }
@@ -234,6 +291,10 @@ class XeroSyncService
 
         try {
             $order = $this->resolvePaymentOrder($refund);
+
+            if (! $this->orderEligibility->allows($order)) {
+                return $this->completeLog($log, SyncStatus::Skipped, ['reason' => 'order_not_placed']);
+            }
 
             if (! filled($order->xero_invoice_id)) {
                 throw new XeroSyncException('The Lunar order does not have a synced Xero invoice ID.');
@@ -740,6 +801,17 @@ class XeroSyncService
         ])->save();
 
         return $response;
+    }
+
+    protected function skipIneligibleOrder(Model $order, SyncOperation $operation): array
+    {
+        $log = $this->startLog(
+            operation: $operation,
+            resource: $order,
+            payload: ['order_id' => $order->getKey()],
+        );
+
+        return $this->completeLog($log, SyncStatus::Skipped, ['reason' => 'order_not_placed']);
     }
 
     protected function failLog(XeroSyncLog $log, Throwable $throwable): void

@@ -2,6 +2,12 @@
 
 All notable changes to `charlielangridge/lunar-xero` will be documented in this file.
 
+## v0.7.1 - 2026-09-27
+
+- Added opt-in placed-order-only invoice sync with `orders.require_placed_for_sync`; it defaults to `false` to preserve existing invoice timing.
+- Queue an invoice when a draft Order becomes placed, and skip manual, direct, and invoice-email sync for unplaced Orders in placed-only mode.
+- Avoid duplicate invoice dispatch from an observer plus configured order-created event, and serialize invoice creation for each Order.
+
 ## v0.7.0 - 2026-08-27
 
 - Added support for Lunar 1.5 and Laravel 13.

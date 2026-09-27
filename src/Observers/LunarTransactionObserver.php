@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CharlieLangridge\LunarXero\Observers;
 
 use CharlieLangridge\LunarXero\Jobs\SyncPaymentToXero;
+use CharlieLangridge\LunarXero\Support\OrderInvoiceSyncEligibility;
 use Illuminate\Database\Eloquent\Model;
 
 class LunarTransactionObserver
@@ -31,7 +32,7 @@ class LunarTransactionObserver
     {
         $order = $transaction->order ?? null;
 
-        if (! $order instanceof Model || ! filled($order->xero_invoice_id)) {
+        if (! $order instanceof Model || ! app(OrderInvoiceSyncEligibility::class)->allows($order) || ! filled($order->xero_invoice_id)) {
             return false;
         }
 
